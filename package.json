@@ -1,0 +1,13 @@
+{
+  "name": "pi-tva-toolbox",
+  "version": "0.1.0",
+  "description": "TVA toolbox for manipulating Pi coding agent sessions",
+  "main": "index.ts",
+  "author": "Ariel Sakin",
+  "license": "Apache-2.0",
+  "dependencies": {},
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "@earendil-works/pi-coding-agent": "latest"
+  }
+}

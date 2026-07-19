@@ -8,3 +8,4 @@ dist/
 .terraform.tfstate.lock.info
 tfplan
 *.tfplan
+node_modules

@@ -1,134 +1,179 @@
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { getAgentDir, SessionManager } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { appendFileSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import fs from "node:fs/promises";
 
+// Helper for debugging.
+const LOG_FILE = path.join(getAgentDir(), "tva.log");
+
+function logDebug(message: string) {
+  try {
+    appendFileSync(LOG_FILE, `[${new Date().toISOString()}] ${message}\n`);
+  } catch (error) {
+    // Report rather than swallow, but never let a bad log path kill the fork.
+    process.stderr.write(`tva: cannot write ${LOG_FILE}: ${error}\n`);
+  }
+}
+
+// Browser menu entries.
+const GRAFT_HERE = "[ graft here ]";
+const GO_UP = "../";
+const GO_HOME = "~/";
+
+// Set by the fork hook, consumed by /graft-finish.
+//
+// Survives the fork because pi caches extension factories per cwd
+// (extensions/loader.js:111-125) and forking does not change cwd, so the module
+// is never re-executed. It is dropped on /reload or once the cwd does change,
+// which is why /graft-finish falls back to asking rather than trusting it.
+let pendingTargetDir: string | null = null;
+
 async function getSubdirectories(currentPath: string): Promise<string[]> {
   try {
     const entries = await fs.readdir(currentPath, { withFileTypes: true });
+
     // Filter to directories that don't start with a dot
     const dirs = entries
       .filter((e) => e.isDirectory() && !e.name.startsWith("."))
       .map((e) => e.name + "/");
     return dirs.sort();
-  } catch (error) {
+  } catch {
     return [];
   }
 }
 
+// Interactive directory browser. Returns undefined if the user escapes.
+async function pickDirectory(ctx: Pick<ExtensionContext, "ui">, startDir: string) {
+  const home = os.homedir();
+  let currentDir = startDir;
+
+  while (true) {
+    const dirs = await getSubdirectories(currentDir);
+
+    // Only collapse a leading home path, not one appearing mid-string.
+    const inHome = currentDir === home || currentDir.startsWith(home + path.sep);
+    const displayPath = inHome ? "~" + currentDir.slice(home.length) : currentDir;
+
+    const choices = [GRAFT_HERE, GO_UP, GO_HOME, ...dirs];
+    const selection = await ctx.ui.select(`Time Heist - target: ${displayPath}`, choices);
+
+    if (!selection) return undefined;
+
+    if (selection === GRAFT_HERE) {
+      return currentDir;
+    } else if (selection === GO_UP) {
+      currentDir = path.dirname(currentDir);
+    } else if (selection === GO_HOME) {
+      currentDir = home;
+    } else {
+      // Navigating into a subdirectory
+      currentDir = path.join(currentDir, selection.replace("/", ""));
+    }
+  }
+}
+
 export default function (pi: ExtensionAPI) {
-  // Hook into the native fork process BEFORE it executes
+  // 1. Ask where this fork should land, then step aside.
+  //
+  // We do NOT cancel. Pi runs its own fork, which extracts the branch correctly
+  // (honouring event.position) and rebuilds the runtime properly. All this hook
+  // does is remember where the user wants it to end up.
   pi.on("session_before_fork", async (event, ctx) => {
-    let currentDir = ctx.cwd;
-    let absoluteTargetDir: string | undefined;
+    if (!ctx.hasUI) return;
 
-    // 1. Interactive Directory Browser
-    while (true) {
-      const dirs = await getSubdirectories(currentDir);
-      const displayPath = currentDir.replace(os.homedir(), "~");
-      
-      const choices = [
-        `[ Graft Here: ${displayPath} ]`,
-        "~/ (Go to home)",
-        "../ (Go up)",
-        ...dirs
-      ];
+    logDebug(`\n=== T.V.A. Time Heist Initiated ===`);
+    logDebug(`[Step 0] Forking from entryId: ${event.entryId} in ${ctx.cwd}`);
 
-      const selection = await ctx.ui.select(`Time Heist - Navigate to target:`, choices);
-
-      // User hit escape or cancelled
-      if (!selection) {
-        ctx.ui.notify("Heist aborted.", "warning");
-        return { cancel: true };
-      }
-
-      if (selection.startsWith("[ Graft Here")) {
-        absoluteTargetDir = currentDir;
-        break;
-      } else if (selection === "../ (Go up)") {
-        currentDir = path.dirname(currentDir);
-      } else if (selection === "~/ (Go to home)") {
-        currentDir = os.homedir();
-      } else {
-        // Navigating into a subdirectory
-        currentDir = path.join(currentDir, selection.replace("/", ""));
-      }
+    const targetDir = await pickDirectory(ctx, ctx.cwd);
+    if (targetDir === undefined) {
+      logDebug(`[Step 1] Aborted`);
+      ctx.ui.notify("Heist aborted.", "warning");
+      return { cancel: true };
     }
 
-    // 2. Delegate to Native Fork
-    // If the user navigated to the exact same path they are currently in,
-    // we return undefined/void, which tells Pi to proceed with its native in-place fork.
-    if (absoluteTargetDir === ctx.cwd) {
-      return; 
+    if (targetDir === ctx.cwd) {
+      logDebug(`[Step 1] Same directory, plain fork.`);
+      return;
     }
 
-    // 3. The Heist (Cross-Directory Fork via native switchSession API)
-    // We are changing directories, so we must CANCEL the native fork and execute our own.
-    try {
-      // Ensure the target directory exists so Pi doesn't throw when trying to bind the workspace
-      await fs.mkdir(absoluteTargetDir, { recursive: true });
-
-      // Grab the exact Sacred Timeline (the straight-line branch up to the specific node selected)
-      // `event.entryId` is the specific node the user chose to fork from in the Tree UI.
-      const entries = ctx.sessionManager?.getEntries?.() || [];
-      const branchEntries = [];
-      const parentMap = new Map();
-      
-      for (const e of entries) {
-        parentMap.set(e.id, e);
-      }
-
-      // Walk backward from the target entryId to the root
-      let currentId = event.entryId;
-      while (currentId && parentMap.has(currentId)) {
-        const e = parentMap.get(currentId);
-        branchEntries.unshift(e); // Add to front for chronological order
-        currentId = e.parentId;
-      }
-
-      const parentSession = ctx.sessionManager?.getSessionFile?.();
-
-      ctx.ui.notify(`Grafting timeline to ${absoluteTargetDir}...`, "info");
-
-      // Delegate completely to Pi's native session creation API.
-      // We use `switchSession` + `newSession` logic: 
-      // First we must generate the new session using `newSession` so the file actually exists,
-      // and we can populate its history. BUT newSession automatically switches you into it.
-      
-      const result = await ctx.newSession({
-        cwd: absoluteTargetDir,
-        parentSession,
-        setup: async (newSessionManager) => {
-          // Replay the exact history up to the fork point into the new session
-          for (const entry of branchEntries) {
-            if (entry.type === "message") {
-              newSessionManager.appendMessage(entry.message);
-            } else if (entry.type === "custom") {
-              newSessionManager.appendEntry(entry);
-            }
-          }
-        },
-        withSession: async (newCtx) => {
-          newCtx.ui.notify(`Sacred Timeline successfully grafted into ${absoluteTargetDir}`, "success");
-        }
-      });
-
-      if (result.cancelled) {
-        ctx.ui.notify("Cross-directory heist was cancelled.", "warning");
-      }
-
-    } catch (error: any) {
-      ctx.ui.notify(`Heist failed: ${error.message}`, "error");
-    }
-
-    // Crucial: Cancel the native fork, because we just executed the cross-directory Heist manually!
-    return { cancel: true };
+    pendingTargetDir = targetDir;
+    logDebug(`[Step 1] Target staged: ${targetDir}`);
+    return;
   });
 
-  pi.registerCommand("tva-status", {
-    description: "Check the status of the Sacred Timeline",
+  // 2. The fork has landed. Tell the user how to finish the move.
+  pi.on("session_start", async (event, ctx) => {
+    if (event.reason !== "fork" || !pendingTargetDir) return;
+
+    logDebug(`[Step 2] Fork landed at ${ctx.sessionManager.getSessionFile()}`);
+    ctx.ui.notify(`Forked. Run /graft-finish to move it to ${pendingTargetDir}`, "info");
+  });
+
+  // 3. Copy this session into the target directory and switch to the copy.
+  //
+  // Only a command handler receives an ExtensionCommandContext, and that is the
+  // only context carrying switchSession. That is the whole reason this is a
+  // second step instead of part of the hook above.
+  pi.registerCommand("graft-finish", {
+    description: "Move the current session into the directory chosen during fork",
     handler: async (args, ctx) => {
-      ctx.ui.notify("The Sacred Timeline is secure.", "info");
+      const targetDir = pendingTargetDir ?? (await pickDirectory(ctx, ctx.cwd));
+      pendingTargetDir = null;
+
+      if (targetDir === undefined) {
+        ctx.ui.notify("Heist aborted.", "warning");
+        return;
+      }
+
+      if (targetDir === ctx.cwd) {
+        ctx.ui.notify("Already in that directory.", "warning");
+        return;
+      }
+
+      try {
+        await fs.mkdir(targetDir, { recursive: true });
+
+        // Pi already built the branch when it forked, so the live session's
+        // entries are exactly what we want. No walking, no splicing.
+        const entries = ctx.sessionManager.getEntries();
+        logDebug(`[Step 3] Moving ${entries.length} entries to ${targetDir}`);
+
+        // create() takes cwd first, so the header is stamped with the target
+        // directory. sessionDir is explicit because the default resolves against
+        // the process agent dir, which is wrong under a relocated one.
+        const targetSessionDir = path.join(
+          path.dirname(ctx.sessionManager.getSessionDir()),
+          `--${targetDir.replace(/^[/\\]/, "").replace(/[/\\:]/g, "-")}--`
+        );
+        const targetManager = SessionManager.create(targetDir, targetSessionDir, {
+          parentSession: ctx.sessionManager.getSessionFile(),
+        });
+
+        const targetFile = targetManager.getSessionFile()!;
+        const lines = [targetManager.getHeader()!, ...entries].map((e) => JSON.stringify(e));
+        await fs.writeFile(targetFile, lines.join("\n") + "\n", "utf-8");
+        logDebug(`[Step 4] Wrote ${targetFile}`);
+
+        // switchSession opens the file, so it must exist first. It reads cwd from
+        // the header we just wrote, and that is what actually moves us.
+        const result = await ctx.switchSession(targetFile, {
+          withSession: async (newCtx) => {
+            newCtx.ui.notify(`Sacred Timeline grafted into ${targetDir}`, "info");
+          },
+        });
+
+        if (result.cancelled) {
+          logDebug(`[Step 5] Switch cancelled`);
+          ctx.ui.notify("Graft cancelled during switch.", "warning");
+          return;
+        }
+        logDebug(`[Step 5] Switched to ${targetFile}\n`);
+      } catch (error: any) {
+        logDebug(`[ERROR] Heist failed: ${error.message}\n${error.stack}`);
+        ctx.ui.notify(`Heist failed: ${error.message}`, "error");
+      }
     },
   });
 }

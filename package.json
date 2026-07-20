@@ -2,12 +2,26 @@
   "name": "pi-tva-toolbox",
   "version": "0.1.0",
   "description": "TVA toolbox for manipulating Pi coding agent sessions",
-  "main": "index.ts",
   "author": "Ariel Sakin",
   "license": "Apache-2.0",
-  "dependencies": {},
+  "type": "module",
+  "keywords": [
+    "pi-package"
+  ],
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
+  "scripts": {
+    "check": "tsc --noEmit",
+    "test": "node --test"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
   "devDependencies": {
-    "typescript": "^5.0.0",
-    "@earendil-works/pi-coding-agent": "latest"
+    "@earendil-works/pi-coding-agent": "latest",
+    "typescript": "^5.0.0"
   }
 }

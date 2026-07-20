@@ -1,5 +1,6 @@
 import type { ExtensionAPI, SessionEntry } from "@earendil-works/pi-coding-agent";
 import { appendFileSync } from "node:fs";
+import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 
@@ -48,8 +49,86 @@ export default function (pi: ExtensionAPI) {
         logDebug(`  - Variant located at entryId: ${target.id}`);
       }
 
-      // TODO: Slice 3 (Descendant Mapper) & Slice 4 (Reset Charge) will follow here.
-      ctx.ui.notify(`Found ${pruneTargets.length} variants. Pruning logic pending implementation...`, "warning");
+      // 2. Descendant Mapper: Find all children of the condemned nodes
+      const parentMap = new Map<string, string | null>();
+      for (const e of entries) {
+        parentMap.set(e.id, e.parentId ?? null);
+      }
+
+      // We need a fast way to get children.
+      const childrenMap = new Map<string, string[]>();
+      for (const e of entries) {
+        if (e.parentId) {
+          const siblings = childrenMap.get(e.parentId) || [];
+          siblings.push(e.id);
+          childrenMap.set(e.parentId, siblings);
+        }
+      }
+
+      const condemnedIds = new Set<string>();
+
+      // Recursive function to mark a node and all its children for deletion
+      const condemnBranch = (nodeId: string) => {
+        if (condemnedIds.has(nodeId)) return; // Already condemned
+        condemnedIds.add(nodeId);
+        
+        const children = childrenMap.get(nodeId) || [];
+        for (const childId of children) {
+          condemnBranch(childId);
+        }
+      };
+
+      for (const target of pruneTargets) {
+        condemnBranch(target.id);
+      }
+
+      logDebug(`Descendant Mapper identified ${condemnedIds.size} total entries to be pruned.`);
+
+      // Protect the Sacred Timeline (The active branch cannot be pruned)
+      // If any of the condemned nodes are in the active branch, we must abort, 
+      // otherwise Pi's active context will crash.
+      const activeBranch = ctx.sessionManager.getBranch() as SessionEntry[];
+      for (const activeNode of activeBranch) {
+        if (condemnedIds.has(activeNode.id)) {
+          logDebug(`[ERROR] Attempted to prune a node (${activeNode.id}) on the active Sacred Timeline. Aborting.`);
+          ctx.ui.notify("Cannot prune: One or more targets are on the active timeline.", "error");
+          return;
+        }
+      }
+
+      // 3. The Reset Charge: Filter the entries array and rewrite the file
+      const survivingEntries = entries.filter((e) => !condemnedIds.has(e.id));
+      
+      const sessionFile = ctx.sessionManager.getSessionFile();
+      if (!sessionFile) {
+        ctx.ui.notify("Cannot prune: No active session file.", "error");
+        return;
+      }
+
+      try {
+        logDebug(`Applying Reset Charge to ${sessionFile}...`);
+        
+        // We must preserve the exact header row.
+        const fileContent = await readFile(sessionFile, "utf-8");
+        const lines = fileContent.split("\n").filter(Boolean);
+        const header = lines[0];
+
+        // Stringify surviving entries
+        const stringifiedEntries = survivingEntries.map((e) => JSON.stringify(e));
+        const splicedLines = [header, ...stringifiedEntries];
+
+        await writeFile(sessionFile, splicedLines.join("\n") + "\n", "utf-8");
+
+        logDebug(`Pruning complete. Surviving entries: ${survivingEntries.length}`);
+
+        // 4. Reload the session to reflect changes in the UI
+        ctx.ui.notify(`Pruned ${condemnedIds.size} variants. Reloading timeline...`, "success");
+        await ctx.reload();
+
+      } catch (error: any) {
+        logDebug(`[ERROR] Pruning failed: ${error.message}\n${error.stack}`);
+        ctx.ui.notify(`Pruning failed: ${error.message}`, "error");
+      }
     }
   });
 }

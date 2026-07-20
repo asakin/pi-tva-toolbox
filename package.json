@@ -1,27 +1,24 @@
 {
   "name": "pi-tva-toolbox",
   "version": "0.1.0",
-  "description": "TVA toolbox for manipulating Pi coding agent sessions",
+  "description": "Pi extensions for time travel, session trees, and forks",
   "author": "Ariel Sakin",
   "license": "Apache-2.0",
   "type": "module",
-  "keywords": [
-    "pi-package"
+  "private": true,
+  "workspaces": [
+    "extensions/*"
   ],
-  "pi": {
-    "extensions": [
-      "./index.ts"
-    ]
-  },
   "scripts": {
-    "check": "tsc --noEmit",
-    "test": "node --test"
-  },
-  "peerDependencies": {
-    "@earendil-works/pi-coding-agent": "*"
+    "check": "npm run check --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present"
   },
   "devDependencies": {
-    "@earendil-works/pi-coding-agent": "latest",
+    "@earendil-works/pi-coding-agent": "0.80.10",
     "typescript": "^5.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/asakin/pi-tva-toolbox.git"
   }
 }

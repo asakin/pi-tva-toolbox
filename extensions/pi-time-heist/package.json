@@ -1,0 +1,46 @@
+{
+  "name": "@arielsakin/pi-time-heist",
+  "version": "0.1.0",
+  "description": "Fork a Pi session from any point in its tree into a different working directory",
+  "type": "module",
+  "license": "Apache-2.0",
+  "author": "Ariel Sakin",
+  "private": false,
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "pi",
+    "session",
+    "fork",
+    "worktree"
+  ],
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "pi": {
+    "extensions": [
+      "./src/heist.ts"
+    ]
+  },
+  "scripts": {
+    "check": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "0.80.10",
+    "typescript": "^5.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/asakin/pi-tva-toolbox.git",
+    "directory": "extensions/pi-time-heist"
+  },
+  "bugs": {
+    "url": "https://github.com/asakin/pi-tva-toolbox/issues"
+  },
+  "homepage": "https://github.com/asakin/pi-tva-toolbox#readme"
+}

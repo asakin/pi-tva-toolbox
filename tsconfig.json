@@ -19,5 +19,5 @@
 
     "skipLibCheck": true
   },
-  "include": ["*.ts"]
+  "include": ["extensions/**/*.ts"]
 }

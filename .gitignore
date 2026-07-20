@@ -9,3 +9,4 @@ dist/
 tfplan
 *.tfplan
 node_modules
+logs/

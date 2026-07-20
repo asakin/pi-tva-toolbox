@@ -10,3 +10,4 @@ tfplan
 *.tfplan
 node_modules
 logs/
+.gstack/

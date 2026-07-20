@@ -19,8 +19,8 @@ function logDebug(message: string) {
 
 // Browser menu entries.
 const GRAFT_HERE = "[ graft here ]";
-const GO_UP = "../";
 const GO_HOME = "~/";
+const GO_UP = "../";
 
 // Mirrors pi's own extractUserMessageText, which is internal. Text parts only,
 // so an image in the forked message is dropped rather than stringified.
@@ -78,7 +78,7 @@ export default function (pi: ExtensionAPI) {
     while (true) {
       const dirs = await getSubdirectories(currentDir);
 
-      const choices = [GRAFT_HERE, GO_UP, GO_HOME, ...dirs];
+      const choices = [GRAFT_HERE, GO_HOME, GO_UP, ...dirs];
       const selection = await ctx.ui.select(`Time Heist - target: ${displayPath(currentDir)}`, choices);
 
       // User hit escape or cancelled

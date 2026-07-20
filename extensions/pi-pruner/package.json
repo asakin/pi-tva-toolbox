@@ -1,0 +1,13 @@
+{
+  "name": "pi-pruner",
+  "version": "0.1.0",
+  "description": "TVA Reset Charge: Prune dead timeline branches from Pi sessions",
+  "main": "src/index.ts",
+  "author": "Ariel Sakin",
+  "license": "Apache-2.0",
+  "dependencies": {},
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "@earendil-works/pi-coding-agent": "latest"
+  }
+}

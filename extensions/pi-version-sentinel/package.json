@@ -1,0 +1,48 @@
+{
+  "name": "@arielsakin/pi-version-sentinel",
+  "version": "0.1.0",
+  "description": "Block a stale dependency version before it hits disk — checks what you write against the registry's latest stable",
+  "type": "module",
+  "license": "Apache-2.0",
+  "author": "Ariel Sakin",
+  "private": false,
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "pi",
+    "dependencies",
+    "versions",
+    "guardrail"
+  ],
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ]
+  },
+  "scripts": {
+    "check": "tsc --noEmit",
+    "test": "node --test"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "0.81.1",
+    "@types/node": "26.1.1",
+    "typescript": "7.0.2"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/asakin/pi-tva-toolbox.git",
+    "directory": "extensions/pi-version-sentinel"
+  },
+  "bugs": {
+    "url": "https://github.com/asakin/pi-tva-toolbox/issues"
+  },
+  "homepage": "https://github.com/asakin/pi-tva-toolbox#readme"
+}

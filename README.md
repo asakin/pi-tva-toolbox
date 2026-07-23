@@ -12,6 +12,9 @@ Sacred Timeline.
 | Extension | Trigger | What it does |
 | --- | --- | --- |
 | [pi-time-heist](extensions/pi-time-heist) | fork, then `/heist` | Fork a session from any point in its tree into a *different* working directory |
+| [pi-pruner](extensions/pi-pruner) | `/prune` | Prune branches labeled `TVA-PRUNE` (and their descendants) from the session tree |
+| [pi-clear](extensions/pi-clear) | `/clear` | Rewind the session to its first user message as a new branch |
+| [pi-version-sentinel](extensions/pi-version-sentinel) | automatic | Catch a stale dependency version before it's written — a memory-refresh for autonomous agents |
 
 ## Install
 

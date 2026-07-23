@@ -18,7 +18,11 @@ import type { ExtensionAPI, SessionMessageEntry } from "@earendil-works/pi-codin
 
 type UserMsg = Extract<SessionMessageEntry["message"], { role: "user" }>;
 
-const CLEAR_LABEL = "⌛ clear";
+const CLEAR_LABEL_PREFIX = "⌛ clear";
+
+// Labels mark the clear EVENT on the old branch's first message; the HH:MM
+// keeps repeated clears in a session distinguishable and self-ordering
+// (/tree's Shift+T has the full timestamp for the rest).
 
 // UserMessage.content is string | (TextContent | ImageContent)[]. Text parts
 // only, so an image in the message is dropped rather than stringified.
@@ -68,7 +72,7 @@ export default function (pi: ExtensionAPI) {
 			// editor. summarize stays off — a clear clear, no residue.
 			const result = await ctx.navigateTree(firstUser.id, {
 				summarize: false,
-				label: CLEAR_LABEL,
+				label: `${CLEAR_LABEL_PREFIX} ${new Date().toTimeString().slice(0, 5)}`,
 			});
 			if (result.cancelled) return;
 

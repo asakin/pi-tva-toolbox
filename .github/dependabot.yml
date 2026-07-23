@@ -1,0 +1,15 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    # "/" is the workspace root; Dependabot walks the workspaces and updates
+    # the pinned version in every extension's package.json.
+    directory: /
+    schedule:
+      interval: daily
+    groups:
+      # One grouped PR for the Pi bump across all workspaces, instead of three.
+      pi-coding-agent:
+        patterns:
+          - "@earendil-works/*"
+    commit-message:
+      prefix: chore

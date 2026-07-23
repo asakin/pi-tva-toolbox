@@ -16,6 +16,25 @@ jobs:
           cache: npm
       - run: npm ci
       # Typecheck every workspace against the pinned Pi version. This is the gate
-      # Renovate's auto-merge waits on: a Pi bump that breaks a type fails here
+      # the auto-merge below waits on: a Pi bump that breaks a type fails here
       # before it can land.
       - run: npm run check
+
+  # Auto-merge Dependabot PRs once `check` passes. Lives in the same workflow so
+  # it can `needs: check` -- that dependency is the gate, so no branch protection
+  # rule is required. Major bumps are left for a human.
+  automerge:
+    needs: check
+    if: github.event_name == 'pull_request' && github.actor == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: dependabot/fetch-metadata@v2
+        id: meta
+      - if: steps.meta.outputs.update-type != 'version-update:semver-major'
+        run: gh pr merge --squash --delete-branch "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

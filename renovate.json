@@ -1,0 +1,20 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":pinAllExceptPeerDependencies"
+  ],
+  "packageRules": [
+    {
+      "description": "Track Pi in lockstep. Bump the pinned version, group the workspace copies into one PR, and auto-merge once CI (npm run check) passes. minimumReleaseAge skips a just-published Pi in case it is broken.",
+      "matchPackageNames": ["@earendil-works/pi-coding-agent"],
+      "groupName": "pi-coding-agent",
+      "rangeStrategy": "pin",
+      "minimumReleaseAge": "1 day",
+      "automerge": true
+    }
+  ],
+  "lockFileMaintenance": {
+    "enabled": true
+  }
+}

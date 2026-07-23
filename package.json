@@ -14,8 +14,9 @@
     "test": "npm run test --workspaces --if-present"
   },
   "devDependencies": {
-    "@earendil-works/pi-coding-agent": "0.80.10",
-    "typescript": "^5.0.0"
+    "@earendil-works/pi-coding-agent": "0.81.1",
+    "@types/node": "26.1.1",
+    "typescript": "7.0.2"
   },
   "repository": {
     "type": "git",

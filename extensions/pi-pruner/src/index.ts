@@ -1,14 +1,10 @@
+import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import type { ExtensionAPI, SessionEntry } from "@earendil-works/pi-coding-agent";
 import { appendFileSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import os from "node:os";
 
 // Helper for debugging.
-function getAgentDir(): string {
-  return path.join(os.homedir(), ".pi", "agent");
-}
-
 const LOG_FILE = path.join(getAgentDir(), "tva.log");
 
 function logDebug(message: string) {
@@ -121,9 +117,13 @@ export default function (pi: ExtensionAPI) {
 
         logDebug(`Pruning complete. Surviving entries: ${survivingEntries.length}`);
 
-        // 4. Reload the session to reflect changes in the UI
-        ctx.ui.notify(`Pruned ${condemnedIds.size} variants. Reloading timeline...`, "success");
-        await ctx.reload();
+        // 4. Re-read the session from disk so the live manager drops the pruned
+        // entries. reload() only reloads extensions/skills/themes, not the
+        // session, so the manager would keep the condemned entries in memory and
+        // write them back on its next rewrite. switchSession to the same file is
+        // the resume path -- it reopens the file and rebuilds the runtime.
+        ctx.ui.notify(`Pruned ${condemnedIds.size} variants. Reloading timeline...`, "info");
+        await ctx.switchSession(sessionFile);
 
       } catch (error: any) {
         logDebug(`[ERROR] Pruning failed: ${error.message}\n${error.stack}`);

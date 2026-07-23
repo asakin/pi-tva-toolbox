@@ -8,7 +8,11 @@ saved file. Pi already has `/new` for that. This `/clear` rewinds the
 branch from there:
 
 - The context is genuinely cleared — the agent wakes up at the beginning.
-- The old timeline stays in the tree, labeled `⌛ clear HH:MM`, one `/tree` jump away.
+- The old timeline stays in the tree, one `/tree` jump away — unmarked, the way it was.
+- The NEW branch's base is labeled `⌛ clear HH:MM` (a timeline jump happened
+  before this point, at this time). Exception: when the first message is the
+  tree root there is no junction entry to hang the label on, so that jump is
+  unlabeled.
 - The first message's text is handed back in the editor, because a session's
   first prompt is usually its intent. Re-send it as-is, edit it into the new
   branch's seed, or clear it and type something else.

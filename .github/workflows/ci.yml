@@ -23,3 +23,5 @@ jobs:
       # running on the runner.
       - run: npm ci --ignore-scripts
       - run: npm run check
+      # Runs each workspace's test script (node --test) where present.
+      - run: npm test

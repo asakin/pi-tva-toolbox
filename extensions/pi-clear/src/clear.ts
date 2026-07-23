@@ -7,21 +7,18 @@
  * the context is genuinely cleared, but the old timeline stays in the tree,
  * one /tree jump away.
  *
- * The "⌛ clear HH:MM" label marks the ARRIVAL, not the departure: it hangs on
- * the junction entry at the base of the NEW branch — a timeline jump happened
- * before this point, at this time. The old branch gets nothing: what it was
- * and why we left it is not ours to assert. The HH:MM keeps repeated clears
- * in a session distinguishable and self-ordering (/tree's Shift+T carries the
- * full timestamp).
+ * The "⌛ clear HH:MM" label always hangs on the first user message — the
+ * session's seed prompt, and the one entry that always exists. The old
+ * branch keeps it as a scar; the new branch re-sends the same prompt, so the
+ * marker belongs to the event more than to either side. The HH:MM keeps
+ * repeated clears in a session distinguishable and self-ordering (/tree's
+ * Shift+T carries the full timestamp).
  *
- * ctx.navigateTree implements native /tree selection semantics. For a
- * user-message target the leaf moves to the message's parent — but the label
- * would attach to that message, the old branch's start, the wrong side. So
- * when the first message has a parent, the target is the PARENT (a non-user
- * entry): the leaf lands on the junction and the label lands with it, and the
- * editor text is set by hand (non-user targets produce none). When the first
- * message is the tree root there is no junction entry — the new branch has no
- * base to mark, so that jump is unlabeled by construction.
+ * ctx.navigateTree implements native /tree selection semantics for a
+ * user-message target: the leaf moves to the message's parent (an empty
+ * conversation), or resets to before-all-entries when the message is the
+ * root, the label attaches to the message, and the original prompt is handed
+ * back for the editor — the session's intent stays one Enter away.
  */
 
 import type { ExtensionAPI, SessionMessageEntry } from "@earendil-works/pi-coding-agent";
@@ -72,29 +69,23 @@ export default function (pi: ExtensionAPI) {
 				return;
 			}
 
-			if (firstUser.parentId === null) {
-				// Root first message: no junction entry exists, so the new
-				// branch has no base to label. Targeting the message itself
-				// resets the leaf before all entries and pi hands the prompt
-				// back to the editor.
-				const result = await ctx.navigateTree(firstUser.id, { summarize: false });
-				if (result.cancelled) return;
-			} else {
-				// Junction exists: target the parent (a non-user entry). The
-				// leaf lands at the base of the NEW branch and the label lands
-				// with it; the old branch stays unmarked. Non-user targets
-				// produce no editor text, so the prompt is set by hand.
-				const result = await ctx.navigateTree(firstUser.parentId, {
-					summarize: false,
-					label: `${CLEAR_LABEL_PREFIX} ${new Date().toTimeString().slice(0, 5)}`,
-				});
-				if (result.cancelled) return;
+			// Targeting the first user message — the one entry that always
+			// exists — gives "before" semantics every time: the leaf moves to
+			// its parent (or resets when it is the root), the label lands on
+			// the seed prompt, and pi hands the prompt back for the editor.
+			// summarize stays off — a clear clear, no residue.
+			const result = await ctx.navigateTree(firstUser.id, {
+				summarize: false,
+				label: `${CLEAR_LABEL_PREFIX} ${new Date().toTimeString().slice(0, 5)}`,
+			});
+			if (result.cancelled) return;
 
-				const text = userMessageText(firstUser.message);
-				if (text) ctx.ui.setEditorText(text);
-			}
+			// The interactive runtime applies the returned editor text itself;
+			// setting it again is idempotent and covers runtimes that don't.
+			const text = userMessageText(firstUser.message);
+			if (text) ctx.ui.setEditorText(text);
 
-			ctx.ui.notify("Timeline cleared — the jump point is labeled in /tree.", "info");
+			ctx.ui.notify("Timeline cleared — the seed prompt is labeled in /tree.", "info");
 		},
 	});
 }

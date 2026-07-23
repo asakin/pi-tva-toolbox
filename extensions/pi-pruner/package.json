@@ -31,7 +31,7 @@
     "@earendil-works/pi-coding-agent": "*"
   },
   "devDependencies": {
-    "@earendil-works/pi-coding-agent": "0.80.10",
+    "@earendil-works/pi-coding-agent": "0.81.1",
     "typescript": "^5.0.0"
   },
   "repository": {

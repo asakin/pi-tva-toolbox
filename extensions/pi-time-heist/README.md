@@ -16,8 +16,8 @@ Time Heist - target: ~/projects
   [ graft here ]
   ../
   ~/
-  companions/
-  pi-tva-toolbox/
+  my-service/
+  my-website/
 ```
 
 Navigate and choose `[ graft here ]`. If you pick the directory you are already in,

@@ -26,8 +26,7 @@ registry's latest **stable major**. If the agent is about to pin a version behin
 the current major, the tool call is blocked with a reason:
 
 ```
-T.V.A. version sentinel — this write pins a variant that has diverged from the
-sacred timeline (latest stable):
+TVA version sentinel — this write pins a version behind the current stable major:
   • typescript ^5.0.0 → latest stable 7.0.2 (2 majors behind)
 A version recalled from training data is suspect. Verify against the registry,
 then re-issue this write to proceed (it passes the second time).

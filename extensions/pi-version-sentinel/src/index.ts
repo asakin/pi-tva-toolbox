@@ -5,10 +5,10 @@ import type {
   ToolCallEventResult,
 } from "@earendil-works/pi-coding-agent";
 
-// The T.V.A. patrols the sacred timeline of session trees. Here it patrols the
-// sacred timeline of *versions*: latest stable. A pinned version behind the
-// current major is a variant, and this sentinel intercepts it before it reaches
-// disk -- because a version recalled from an agent's training data is suspect.
+// The rest of the toolbox administers transcript versions; this one administers
+// *dependency* versions. A pin behind the current stable major is a stale pin,
+// and this sentinel intercepts it before it reaches disk -- because a version
+// recalled from an agent's training data is suspect.
 //
 // Scope (deliberately narrow): only the text being written this edit is checked
 // (the write payload), never the file on disk or the wider project. Only
@@ -274,7 +274,7 @@ export function buildReason(stale: StalePin[]): string {
     (s) => `  • ${s.name} ${s.spec} → latest stable ${s.latest} (${s.behind} major${s.behind > 1 ? "s" : ""} behind)`,
   );
   return [
-    "T.V.A. version sentinel — this write pins a variant that has diverged from the sacred timeline (latest stable):",
+    "TVA version sentinel — this write pins a version behind the current stable major:",
     ...lines,
     "A version recalled from training data is suspect. Verify against the registry, then re-issue this write to proceed (it passes the second time).",
   ].join("\n");

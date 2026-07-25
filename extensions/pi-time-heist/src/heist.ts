@@ -214,7 +214,7 @@ export default function (pi: ExtensionAPI) {
             // The editor belongs to the new session, so prefill on this side.
             if (selectedText) nextCtx.ui.setEditorText(selectedText);
             nextCtx.ui.notify(
-              `Sacred Timeline grafted into ${displayPath(heist.targetDir)}`,
+              `Branch history grafted into ${displayPath(heist.targetDir)}`,
               "info"
             );
           },

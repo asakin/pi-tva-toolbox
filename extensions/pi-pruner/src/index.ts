@@ -17,14 +17,14 @@ function logDebug(message: string) {
 
 export default function (pi: ExtensionAPI) {
   pi.registerCommand("prune", {
-    description: "Deploy Reset Charges: Prune all branches labeled 'TVA-PRUNE'",
+    description: "Prune all branches labeled 'TVA-PRUNE' and their descendants",
     handler: async (args, ctx) => {
-      logDebug("\n=== T.V.A. Reset Charge Deployed ===");
+      logDebug("\n=== prune ===");
       
       const entries = ctx.sessionManager.getEntries() as SessionEntry[];
       const pruneTargets: SessionEntry[] = [];
 
-      logDebug(`Scanning ${entries.length} timeline entries for TVA-PRUNE variants...`);
+      logDebug(`Scanning ${entries.length} entries for TVA-PRUNE labels...`);
 
       // 1. Label Scanner: Find all nodes labeled "TVA-PRUNE"
       for (const entry of entries) {
@@ -35,17 +35,17 @@ export default function (pi: ExtensionAPI) {
       }
 
       if (pruneTargets.length === 0) {
-        logDebug("No TVA-PRUNE labels found. Sacred Timeline is secure.");
+        logDebug("No TVA-PRUNE labels found. Nothing to prune.");
         ctx.ui.notify("No branches labeled 'TVA-PRUNE' found.", "info");
         return;
       }
 
       logDebug(`Found ${pruneTargets.length} root nodes designated for pruning.`);
       for (const target of pruneTargets) {
-        logDebug(`  - Variant located at entryId: ${target.id}`);
+        logDebug(`  - Marked branch root at entryId: ${target.id}`);
       }
 
-      // 2. Descendant Mapper: Find all children of the condemned nodes
+      // 2. Descendant Mapper: Find all children of the marked nodes
       const parentMap = new Map<string, string | null>();
       for (const e of entries) {
         parentMap.set(e.id, e.parentId ?? null);
@@ -61,39 +61,39 @@ export default function (pi: ExtensionAPI) {
         }
       }
 
-      const condemnedIds = new Set<string>();
+      const doomedIds = new Set<string>();
 
       // Recursive function to mark a node and all its children for deletion
-      const condemnBranch = (nodeId: string) => {
-        if (condemnedIds.has(nodeId)) return; // Already condemned
-        condemnedIds.add(nodeId);
+      const markBranch = (nodeId: string) => {
+        if (doomedIds.has(nodeId)) return; // Already marked
+        doomedIds.add(nodeId);
         
         const children = childrenMap.get(nodeId) || [];
         for (const childId of children) {
-          condemnBranch(childId);
+          markBranch(childId);
         }
       };
 
       for (const target of pruneTargets) {
-        condemnBranch(target.id);
+        markBranch(target.id);
       }
 
-      logDebug(`Descendant Mapper identified ${condemnedIds.size} total entries to be pruned.`);
+      logDebug(`Descendant Mapper identified ${doomedIds.size} total entries to be pruned.`);
 
-      // Protect the Sacred Timeline (The active branch cannot be pruned)
-      // If any of the condemned nodes are in the active branch, we must abort, 
+      // Protect the active branch (it cannot be pruned).
+      // If any of the marked nodes are in the active branch, we must abort, 
       // otherwise Pi's active context will crash.
       const activeBranch = ctx.sessionManager.getBranch() as SessionEntry[];
       for (const activeNode of activeBranch) {
-        if (condemnedIds.has(activeNode.id)) {
-          logDebug(`[ERROR] Attempted to prune a node (${activeNode.id}) on the active Sacred Timeline. Aborting.`);
+        if (doomedIds.has(activeNode.id)) {
+          logDebug(`[ERROR] Attempted to prune a node (${activeNode.id}) on the active branch. Aborting.`);
           ctx.ui.notify("Cannot prune: One or more targets are on the active timeline.", "error");
           return;
         }
       }
 
-      // 3. The Reset Charge: Filter the entries array and rewrite the file
-      const survivingEntries = entries.filter((e) => !condemnedIds.has(e.id));
+      // 3. Filter the entries array and rewrite the file
+      const survivingEntries = entries.filter((e) => !doomedIds.has(e.id));
       
       const sessionFile = ctx.sessionManager.getSessionFile();
       if (!sessionFile) {
@@ -102,7 +102,7 @@ export default function (pi: ExtensionAPI) {
       }
 
       try {
-        logDebug(`Applying Reset Charge to ${sessionFile}...`);
+        logDebug(`Rewriting ${sessionFile}...`);
         
         // We must preserve the exact header row.
         const fileContent = await readFile(sessionFile, "utf-8");
@@ -119,10 +119,10 @@ export default function (pi: ExtensionAPI) {
 
         // 4. Re-read the session from disk so the live manager drops the pruned
         // entries. reload() only reloads extensions/skills/themes, not the
-        // session, so the manager would keep the condemned entries in memory and
+        // session, so the manager would keep the deleted entries in memory and
         // write them back on its next rewrite. switchSession to the same file is
         // the resume path -- it reopens the file and rebuilds the runtime.
-        ctx.ui.notify(`Pruned ${condemnedIds.size} variants. Reloading timeline...`, "info");
+        ctx.ui.notify(`Pruned ${doomedIds.size} entries. Reloading session...`, "info");
         await ctx.switchSession(sessionFile);
 
       } catch (error: any) {

@@ -1,11 +1,12 @@
 # pi-tva-toolbox
 
-A Time Variance Authority (TVA) inspired collection of [Pi](https://pi.dev) extensions for
-time travel, session trees, and forks.
+**TVA — Transcript Version Administration.** A collection of [Pi](https://pi.dev)
+extensions for session trees, forks, and the versions they carry.
 
-Pi sessions are append-only DAGs of JSON entries. These tools manipulate that graph:
-moving timelines between directories, pruning branches, and generally interfering with the
-Sacred Timeline.
+Pi sessions are append-only DAGs of JSON entries — a transcript and every branch of it.
+These tools administer that graph: moving timelines between directories, rewinding a
+session to its seed, pruning dead branches, and checking the dependency versions written
+along the way.
 
 ## Extensions
 

@@ -17,8 +17,9 @@
  * ctx.navigateTree implements native /tree selection semantics for a
  * user-message target: the leaf moves to the message's parent (an empty
  * conversation), or resets to before-all-entries when the message is the
- * root, the label attaches to the message, and the original prompt is handed
- * back for the editor — the session's intent stays one Enter away.
+ * root, and the label attaches to the message. Native /tree selection would
+ * also hand the original prompt back to the editor for a redo, but /clear
+ * explicitly blanks it instead — the point is a clean rewind, not a resend.
  */
 
 import type { ExtensionAPI, SessionMessageEntry } from "@earendil-works/pi-coding-agent";
@@ -26,16 +27,6 @@ import type { ExtensionAPI, SessionMessageEntry } from "@earendil-works/pi-codin
 type UserMsg = Extract<SessionMessageEntry["message"], { role: "user" }>;
 
 const CLEAR_LABEL_PREFIX = "⌛ clear";
-
-// UserMessage.content is string | (TextContent | ImageContent)[]. Text parts
-// only, so an image in the message is dropped rather than stringified.
-function userMessageText(message: UserMsg): string {
-	if (typeof message.content === "string") return message.content;
-	return message.content
-		.filter((part) => part.type === "text")
-		.map((part) => part.text)
-		.join("");
-}
 
 export default function (pi: ExtensionAPI) {
 	pi.registerCommand("clear", {
@@ -80,10 +71,9 @@ export default function (pi: ExtensionAPI) {
 			});
 			if (result.cancelled) return;
 
-			// The interactive runtime applies the returned editor text itself;
-			// setting it again is idempotent and covers runtimes that don't.
-			const text = userMessageText(firstUser.message);
-			if (text) ctx.ui.setEditorText(text);
+			// Unlike native /tree selection, /clear should leave the editor
+			// empty — a clean rewind, not the old prompt handed back for a redo.
+			ctx.ui.setEditorText("");
 
 			ctx.ui.notify("Timeline cleared — the seed prompt is labeled in /tree.", "info");
 		},

@@ -11,3 +11,4 @@ tfplan
 node_modules
 logs/
 .gstack/
+pi-extensions.code-workspace

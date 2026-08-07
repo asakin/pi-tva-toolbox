@@ -20,16 +20,13 @@ along the way.
 
 ## Install
 
-The whole toolbox, from git:
+From git (shared / published checkout):
 
 ```bash
 pi install git:github.com/asakin/pi-tva-toolbox
 ```
 
-Every extension under `extensions/` is discovered automatically, so new tools arrive with
-a `pi update`.
-
-To load only some of them, use the object form in your settings instead:
+To load only some of the listed extensions, use the object form in your settings:
 
 ```json
 {
@@ -51,15 +48,56 @@ pi install npm:@arielsakin/pi-time-heist      # not published yet
 
 ## Development
 
-Each extension is an npm workspace under `extensions/`, with its own `package.json`, `pi`
-manifest, and version. The root package is private and ships nothing.
+This repo is the **multi-extension package** pattern (contrast with a single-folder
+extension like `pi-ambient`): one installable root, explicit opt-in list in
+`package.json` → `pi.extensions`. Mid-development tools live under `extensions/`
+but stay unloaded until you append their entry path to that array.
+
+Each tool under `extensions/` is also its own npm workspace (own `package.json`,
+version, and per-package `pi` manifest) for later individual publish.
+
+### Live against a local checkout
+
+Do **not** drop symlinks into `~/.pi/agent/extensions/`. Path-install the repo so
+pi loads it as a package (no copy; edits are live):
+
+```bash
+# from anywhere — use the absolute path to *this* checkout
+pi install /Users/arielsakin/projects/OSS/pi-extensions/pi-tva-toolbox
+pi list
+```
+
+What you should see in `pi list`:
+
+```text
+../../projects/OSS/pi-extensions/pi-tva-toolbox
+  /Users/arielsakin/projects/OSS/pi-extensions/pi-tva-toolbox
+```
+
+pi rewrites the absolute path you passed into a path **relative to**
+`~/.pi/agent/settings.json` (that `../../projects/...` line). That is normal —
+not a manual settings edit. The resolved absolute path is the second line.
+
+Then `/reload` in pi (or restart) so the listed extensions load.
+
+To reset and redo:
+
+```bash
+pi remove /Users/arielsakin/projects/OSS/pi-extensions/pi-tva-toolbox
+pi install /Users/arielsakin/projects/OSS/pi-extensions/pi-tva-toolbox
+```
+
+### Day-to-day
 
 ```bash
 npm install
 npm run check      # typecheck every workspace
 ```
 
-Extensions are plain TypeScript, loaded by Pi through jiti. There is no build step.
+Extensions are plain TypeScript, loaded by pi through jiti. There is no build step.
+
+To ship a new tool: add the workspace under `extensions/`, then append its entry
+path to the root `pi.extensions` array when it is ready to load.
 
 ## License
 

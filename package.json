@@ -6,9 +6,23 @@
   "license": "Apache-2.0",
   "type": "module",
   "private": true,
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "pi-coding-agent"
+  ],
   "workspaces": [
     "extensions/*"
   ],
+  "pi": {
+    "extensions": [
+      "./extensions/pi-clear/src/clear.ts",
+      "./extensions/pi-fork-off/src/fork-off.ts",
+      "./extensions/pi-pruner/src/index.ts",
+      "./extensions/pi-time-heist/src/heist.ts",
+      "./extensions/pi-version-sentinel/src/index.ts"
+    ]
+  },
   "scripts": {
     "check": "npm run check --workspaces --if-present",
     "test": "npm run test --workspaces --if-present"

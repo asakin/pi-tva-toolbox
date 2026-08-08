@@ -1,13 +1,8 @@
 {
   "name": "pi-pluck",
-  "version": "1.0.0",
-  "main": "index.ts",
+  "private": true,
   "type": "module",
   "pi": {
     "extensions": ["./index.ts"]
-  },
-  "devDependencies": {
-    "@earendil-works/pi-coding-agent": "0.84.1",
-    "typescript": "^5.0.0"
   }
 }

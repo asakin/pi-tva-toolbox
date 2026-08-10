@@ -20,7 +20,50 @@ export type PluckPlan =
 			divergenceParentId: string;
 			/** Nothing left to clone after the cut; tip will be label-only. */
 			labelOnly: boolean;
+			/**
+			 * One short line per forgotten turn (for confirm UI).
+			 * For rootProtected head turns, previews the forgotten assistant side — not the kept prompt.
+			 */
+			forgottenPreviews: string[];
 	  };
+
+const PREVIEW_MAX_CHARS = 72;
+
+function truncatePreview(text: string): string {
+	const oneLine = text.replace(/\s+/g, " ").trim();
+	if (oneLine.length <= PREVIEW_MAX_CHARS) return oneLine;
+	return `${oneLine.slice(0, PREVIEW_MAX_CHARS - 1)}…`;
+}
+
+/** Prefer user text; else first searchable entry text. */
+function turnPreview(turn: Turn): string {
+	for (const entry of turn) {
+		if (entry.type === "message" && entry.message.role === "user") {
+			const text = contentToText(entry.message.content);
+			if (text) return truncatePreview(text);
+		}
+	}
+	for (const entry of turn) {
+		const text = entryMatchText(entry);
+		if (text) return truncatePreview(text);
+	}
+	return "(no text)";
+}
+
+/** Preview for the omitted tail of a rootProtected turn (assistant + tools). */
+function forgottenSlicePreview(entries: SessionEntry[]): string {
+	for (const entry of entries) {
+		if (entry.type === "message" && entry.message.role === "assistant") {
+			const text = entryMatchText(entry);
+			if (text) return truncatePreview(text);
+		}
+	}
+	for (const entry of entries) {
+		const text = entryMatchText(entry);
+		if (text) return truncatePreview(text);
+	}
+	return "(no text)";
+}
 
 function contentToText(content: unknown): string {
 	if (typeof content === "string") return content;
@@ -111,6 +154,7 @@ export function planForgetfulRewrite(
 	const firstUserId = findFirstUserId(turns);
 
 	const keptTurns: Turn[] = [];
+	const forgottenPreviews: string[] = [];
 	let skippedCount = 0;
 	let rootProtected = false;
 
@@ -130,8 +174,14 @@ export function planForgetfulRewrite(
 		if (userIdx >= 0 && !rootProtected) {
 			rootProtected = true;
 			keptTurns.push(turn.slice(0, userIdx + 1));
+			const forgotten = turn.slice(userIdx + 1);
+			if (forgotten.length > 0) {
+				forgottenPreviews.push(forgottenSlicePreview(forgotten));
+			}
+		} else {
+			// Matching turn with no protected head → omit entirely.
+			forgottenPreviews.push(turnPreview(turn));
 		}
-		// Matching turn with no protected head → omit entirely.
 	}
 
 	if (skippedCount === 0) {
@@ -181,5 +231,6 @@ export function planForgetfulRewrite(
 		rootProtected,
 		divergenceParentId,
 		labelOnly,
+		forgottenPreviews,
 	};
 }

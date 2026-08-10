@@ -98,6 +98,7 @@ function okPlan(
 		rootProtected: false,
 		divergenceParentId: "a1",
 		labelOnly: false,
+		forgottenPreviews: ["talk about banana"],
 		...overrides,
 	};
 }
@@ -157,6 +158,7 @@ describe("planForgetfulRewrite", () => {
 		expect(plan.rootProtected).toBe(false);
 		expect(plan.divergenceParentId).toBe("a1");
 		expect(plan.keptTurns.map((t) => t[0]!.id)).toEqual(["u1", "u3"]);
+		expect(plan.forgottenPreviews).toEqual(["talk about banana"]);
 	});
 
 	test("never drops the session head; flags rootProtected when first turn matches", () => {
@@ -167,6 +169,8 @@ describe("planForgetfulRewrite", () => {
 		expect(plan.rootProtected).toBe(true);
 		expect(plan.keptTurns[0]!.some((e) => e.id === "u1")).toBe(true);
 		expect(plan.keptTurns[0]!.some((e) => e.id === "a1")).toBe(false);
+		// Preview the forgotten assistant side — not the kept session-head prompt.
+		expect(plan.forgottenPreviews).toEqual(["hi"]);
 	});
 
 	test("does not match tool results", () => {

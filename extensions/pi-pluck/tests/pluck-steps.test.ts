@@ -3,6 +3,7 @@ import type {
 	ExtensionCommandContext,
 	SessionEntry,
 } from "@earendil-works/pi-coding-agent";
+import { SessionManager } from "@earendil-works/pi-coding-agent";
 import {
 	buildConfirmMessage,
 	buildLabelText,
@@ -16,6 +17,7 @@ import {
 } from "../src/pluck-steps.ts";
 
 type MsgRole = "user" | "assistant" | "toolResult";
+type LiveSession = ReturnType<typeof SessionManager.inMemory>;
 
 function msg(
 	id: string,
@@ -100,6 +102,94 @@ function okPlan(
 		forgottenPreviews: ["talk about banana"],
 		...overrides,
 	};
+}
+
+function makeSm(): LiveSession {
+	return SessionManager.inMemory();
+}
+
+function appendAssistant(sm: LiveSession, text: string): void {
+	sm.appendMessage({
+		role: "assistant",
+		content: [{ type: "text", text }],
+		api: "test",
+		provider: "test",
+		model: "test",
+		usage: {
+			input: 0,
+			output: 0,
+			cacheRead: 0,
+			cacheWrite: 0,
+			totalTokens: 0,
+			cost: {
+				input: 0,
+				output: 0,
+				cacheRead: 0,
+				cacheWrite: 0,
+				total: 0,
+			},
+		},
+		stopReason: "stop",
+		timestamp: Date.now(),
+	});
+}
+
+function appendUser(sm: LiveSession, content: string): void {
+	sm.appendMessage({
+		role: "user",
+		content,
+		timestamp: new Date().toISOString(),
+	});
+}
+
+/** Seed alternating user/assistant turns from content pairs. */
+function seedTurns(
+	sm: LiveSession,
+	turns: Array<{ user: string; assistant: string }>,
+): void {
+	for (const turn of turns) {
+		appendUser(sm, turn.user);
+		appendAssistant(sm, turn.assistant);
+	}
+}
+
+function growCtx(sm: LiveSession): ExtensionCommandContext {
+	return {
+		sessionManager: sm,
+		ui: { notify: () => {}, confirm: async () => true },
+	} as unknown as ExtensionCommandContext;
+}
+
+function countForgetfulUserTurns(
+	sm: LiveSession,
+	labeledRootId: string,
+): number {
+	const byParent = new Map<string, SessionEntry[]>();
+	for (const entry of sm.getEntries() as SessionEntry[]) {
+		if (!entry.parentId) continue;
+		const list = byParent.get(entry.parentId) ?? [];
+		list.push(entry);
+		byParent.set(entry.parentId, list);
+	}
+
+	let count = 0;
+	const stack = [labeledRootId];
+	const seen = new Set<string>();
+	while (stack.length > 0) {
+		const id = stack.pop()!;
+		if (seen.has(id)) continue;
+		seen.add(id);
+		const entry = sm.getEntry(id) as SessionEntry | undefined;
+		if (!entry) continue;
+		if (entry.type === "message" && entry.message.role === "user") {
+			count++;
+		}
+		for (const child of byParent.get(id) ?? []) {
+			if (child.type === "label") continue;
+			stack.push(child.id);
+		}
+	}
+	return count;
 }
 
 describe("validateRegex", () => {
@@ -273,52 +363,13 @@ describe("buildConfirmMessage", () => {
 });
 
 describe("growForgetfulBranch", () => {
-	test("labels the forgetful-branch root and anchors the leaf on the trunk", async () => {
-		const { dirname } = await import("node:path");
-		const { realpath } = await import("node:fs/promises");
-		const piBin = Bun.which("pi");
-		if (!piBin) throw new Error("pi binary not found on PATH");
-		const { SessionManager } = await import(
-			`${dirname(await realpath(piBin))}/core/session-manager.js`
-		);
-
-		const sm = SessionManager.inMemory();
-		const ts = () => new Date().toISOString();
-		const assistant = (text: string) =>
-			sm.appendMessage({
-				role: "assistant",
-				content: [{ type: "text", text }],
-				api: "test",
-				provider: "test",
-				model: "test",
-				usage: {
-					input: 0,
-					output: 0,
-					cacheRead: 0,
-					cacheWrite: 0,
-					totalTokens: 0,
-					cost: {
-						input: 0,
-						output: 0,
-						cacheRead: 0,
-						cacheWrite: 0,
-						total: 0,
-					},
-				},
-				stopReason: "stop",
-				timestamp: Date.now(),
-			});
-
-		sm.appendMessage({ role: "user", content: "hello", timestamp: ts() });
-		assistant("hi");
-		sm.appendMessage({
-			role: "user",
-			content: "talk about banana",
-			timestamp: ts(),
-		});
-		assistant("about banana");
-		sm.appendMessage({ role: "user", content: "continue", timestamp: ts() });
-		assistant("continuing");
+	test("labels the forgetful-branch root and anchors the leaf on the trunk", () => {
+		const sm = makeSm();
+		seedTurns(sm, [
+			{ user: "hello", assistant: "hi" },
+			{ user: "talk about banana", assistant: "about banana" },
+			{ user: "continue", assistant: "continuing" },
+		]);
 
 		const originalLeaf = sm.getLeafId();
 		expect(originalLeaf).toBeTruthy();
@@ -328,13 +379,8 @@ describe("growForgetfulBranch", () => {
 		expect(plan.ok).toBe(true);
 		if (!plan.ok) return;
 
-		const ctx = {
-			sessionManager: sm,
-			ui: { notify: () => {}, confirm: async () => true },
-		} as unknown as ExtensionCommandContext;
-
 		const { labeledRootId, labelText, clonedCount, tipId } =
-			growForgetfulBranch(ctx, plan);
+			growForgetfulBranch(growCtx(sm), plan);
 		expect(typeof labeledRootId).toBe("string");
 		expect(labeledRootId).not.toBe(originalLeaf);
 		expect(labelText).toMatch(/plucked 1\/3/);
@@ -342,14 +388,11 @@ describe("growForgetfulBranch", () => {
 		expect(clonedCount).toBe(plan.keptTurns.flat().length);
 		expect(tipId).toBeTruthy();
 
-		// Label sits on the first user message of the forgetful branch.
 		expect(sm.getLabel(labeledRootId)).toBe(labelText);
 		expect(sm.getLabel(originalLeaf!)).toBeUndefined();
 		expect(sm.getEntry(labeledRootId)?.type).toBe("message");
 		expect(sm.getEntry(labeledRootId)?.message.role).toBe("user");
 
-
-		// No synthetic tip message — bookmarks are labels on real turns.
 		expect(
 			sm.getEntries().some(
 				(e: SessionEntry) =>
@@ -357,8 +400,6 @@ describe("growForgetfulBranch", () => {
 			),
 		).toBe(false);
 
-		// Trunk bookkeeping: leaf is a plain custom child of the original leaf
-		// so resume does not rebuild onto the forgetful tip (fork-off pattern).
 		const leafId = sm.getLeafId();
 		expect(leafId).toBeTruthy();
 		const leaf = sm.getEntry(leafId!);
@@ -367,52 +408,13 @@ describe("growForgetfulBranch", () => {
 		expect(leaf?.parentId).toBe(originalLeaf);
 	});
 
-	test("restores trunk leaf if grow fails after clones", async () => {
-		const { dirname } = await import("node:path");
-		const { realpath } = await import("node:fs/promises");
-		const piBin = Bun.which("pi");
-		if (!piBin) throw new Error("pi binary not found on PATH");
-		const { SessionManager } = await import(
-			`${dirname(await realpath(piBin))}/core/session-manager.js`
-		);
-
-		const sm = SessionManager.inMemory();
-		const ts = () => new Date().toISOString();
-		const assistant = (text: string) =>
-			sm.appendMessage({
-				role: "assistant",
-				content: [{ type: "text", text }],
-				api: "test",
-				provider: "test",
-				model: "test",
-				usage: {
-					input: 0,
-					output: 0,
-					cacheRead: 0,
-					cacheWrite: 0,
-					totalTokens: 0,
-					cost: {
-						input: 0,
-						output: 0,
-						cacheRead: 0,
-						cacheWrite: 0,
-						total: 0,
-					},
-				},
-				stopReason: "stop",
-				timestamp: Date.now(),
-			});
-
-		sm.appendMessage({ role: "user", content: "hello", timestamp: ts() });
-		assistant("hi");
-		sm.appendMessage({
-			role: "user",
-			content: "talk about banana",
-			timestamp: ts(),
-		});
-		assistant("about banana");
-		sm.appendMessage({ role: "user", content: "continue", timestamp: ts() });
-		assistant("continuing");
+	test("restores trunk leaf if grow fails after clones", () => {
+		const sm = makeSm();
+		seedTurns(sm, [
+			{ user: "hello", assistant: "hi" },
+			{ user: "talk about banana", assistant: "about banana" },
+			{ user: "continue", assistant: "continuing" },
+		]);
 
 		const originalLeaf = sm.getLeafId();
 		expect(originalLeaf).toBeTruthy();
@@ -426,62 +428,23 @@ describe("growForgetfulBranch", () => {
 			throw new Error("boom: label failed");
 		};
 
-		const ctx = {
-			sessionManager: sm,
-			ui: { notify: () => {}, confirm: async () => true },
-		} as unknown as ExtensionCommandContext;
-
-		expect(() => growForgetfulBranch(ctx, plan)).toThrow(/boom: label failed/);
+		expect(() => growForgetfulBranch(growCtx(sm), plan)).toThrow(
+			/boom: label failed/,
+		);
 		expect(sm.getLeafId()).toBe(originalLeaf);
 	});
 
-	test("forget N of M turns → forgetful branch has M−N turns (not a length-1 stub)", async () => {
+	test("forget N of M turns → forgetful branch has M−N turns (not a length-1 stub)", () => {
 		// Repro: after /pluck commit (56/130), /tree showed a labeled side-branch
 		// with only the first kept turn + aborted assistant — nowhere to continue.
-		// Product rule: if we forget 1 of 10, the new branch must carry all 9 kept
-		// turns under the labeled root (a tip you can actually resume from).
-		const { dirname } = await import("node:path");
-		const { realpath } = await import("node:fs/promises");
-		const piBin = Bun.which("pi");
-		if (!piBin) throw new Error("pi binary not found on PATH");
-		const { SessionManager } = await import(
-			`${dirname(await realpath(piBin))}/core/session-manager.js`
-		);
-
-		const sm = SessionManager.inMemory();
-		const ts = () => new Date().toISOString();
-		const assistant = (text: string) =>
-			sm.appendMessage({
-				role: "assistant",
-				content: [{ type: "text", text }],
-				api: "test",
-				provider: "test",
-				model: "test",
-				usage: {
-					input: 0,
-					output: 0,
-					cacheRead: 0,
-					cacheWrite: 0,
-					totalTokens: 0,
-					cost: {
-						input: 0,
-						output: 0,
-						cacheRead: 0,
-						cacheWrite: 0,
-						total: 0,
-					},
-				},
-				stopReason: "stop",
-				timestamp: Date.now(),
-			});
-
+		const sm = makeSm();
 		const totalTurns = 10;
-		const forgetAt = 2; // early-ish omit so a long kept suffix should exist
+		const forgetAt = 2;
 		for (let i = 0; i < totalTurns; i++) {
 			const content =
 				i === forgetAt ? `turn ${i} BANANA please forget` : `turn ${i} keep me`;
-			sm.appendMessage({ role: "user", content, timestamp: ts() });
-			assistant(`reply ${i}`);
+			appendUser(sm, content);
+			appendAssistant(sm, `reply ${i}`);
 		}
 
 		const turns = turnsFromBranch(sm.getBranch() as SessionEntry[]);
@@ -496,151 +459,31 @@ describe("growForgetfulBranch", () => {
 		const expectedKept = totalTurns - plan.skippedCount;
 		expect(plan.keptTurns.length).toBe(expectedKept);
 
-		const ctx = {
-			sessionManager: sm,
-			ui: { notify: () => {}, confirm: async () => true },
-		} as unknown as ExtensionCommandContext;
-
-		const { labeledRootId, clonedCount } = growForgetfulBranch(ctx, plan);
+		const { labeledRootId, clonedCount } = growForgetfulBranch(
+			growCtx(sm),
+			plan,
+		);
 		expect(clonedCount).toBe(plan.keptTurns.flat().length);
 		expect(sm.getEntry(labeledRootId)?.message.role).toBe("user");
-
-		// User turns on the forgetful side-branch: labeled root + every descendant
-		// user message. This is what /tree shows under the [plucked …] marker —
-		// not "shared trunk + tiny stub".
-		const byParent = new Map<string, SessionEntry[]>();
-		for (const entry of sm.getEntries() as SessionEntry[]) {
-			if (!entry.parentId) continue;
-			const list = byParent.get(entry.parentId) ?? [];
-			list.push(entry);
-			byParent.set(entry.parentId, list);
-		}
-
-		const forgetfulUserTurns: SessionEntry[] = [];
-		const stack = [labeledRootId];
-		const seen = new Set<string>();
-		while (stack.length > 0) {
-			const id = stack.pop()!;
-			if (seen.has(id)) continue;
-			seen.add(id);
-			const entry = sm.getEntry(id) as SessionEntry | undefined;
-			if (!entry) continue;
-			if (entry.type === "message" && entry.message.role === "user") {
-				forgetfulUserTurns.push(entry);
-			}
-			for (const child of byParent.get(id) ?? []) {
-				// Label entries hang under the tip; skip non-conversation noise for count.
-				if (child.type === "label") continue;
-				stack.push(child.id);
-			}
-		}
-
-		expect(forgetfulUserTurns.length).toBe(expectedKept);
+		expect(countForgetfulUserTurns(sm, labeledRootId)).toBe(expectedKept);
 	});
 
-	test("labels the first user message, not a leading model_change", async () => {
-		// Field: [plucked …] [model: gemini-pro-latest] with only bash under it.
-		// Leading model_change must not be the /tree signpost.
-		const { dirname } = await import("node:path");
-		const { realpath } = await import("node:fs/promises");
-		const piBin = Bun.which("pi");
-		if (!piBin) throw new Error("pi binary not found on PATH");
-		const { SessionManager } = await import(
-			`${dirname(await realpath(piBin))}/core/session-manager.js`
-		);
-
-		const sm = SessionManager.inMemory();
-		const ts = () => new Date().toISOString();
+	test("labels the first user message, not a leading model_change", () => {
+		const sm = makeSm();
 		sm.appendModelChange("google", "gemini-pro-latest");
-		sm.appendMessage({ role: "user", content: "keep turn 0", timestamp: ts() });
-		sm.appendMessage({
-			role: "assistant",
-			content: [{ type: "text", text: "reply 0" }],
-			api: "test",
-			provider: "test",
-			model: "test",
-			usage: {
-				input: 0,
-				output: 0,
-				cacheRead: 0,
-				cacheWrite: 0,
-				totalTokens: 0,
-				cost: {
-					input: 0,
-					output: 0,
-					cacheRead: 0,
-					cacheWrite: 0,
-					total: 0,
-				},
-			},
-			stopReason: "stop",
-			timestamp: Date.now(),
-		});
-		sm.appendMessage({
-			role: "user",
-			content: "BANANA forget this",
-			timestamp: ts(),
-		});
-		sm.appendMessage({
-			role: "assistant",
-			content: [{ type: "text", text: "forgotten" }],
-			api: "test",
-			provider: "test",
-			model: "test",
-			usage: {
-				input: 0,
-				output: 0,
-				cacheRead: 0,
-				cacheWrite: 0,
-				totalTokens: 0,
-				cost: {
-					input: 0,
-					output: 0,
-					cacheRead: 0,
-					cacheWrite: 0,
-					total: 0,
-				},
-			},
-			stopReason: "stop",
-			timestamp: Date.now(),
-		});
-		sm.appendMessage({ role: "user", content: "keep tip", timestamp: ts() });
-		sm.appendMessage({
-			role: "assistant",
-			content: [{ type: "text", text: "reply tip" }],
-			api: "test",
-			provider: "test",
-			model: "test",
-			usage: {
-				input: 0,
-				output: 0,
-				cacheRead: 0,
-				cacheWrite: 0,
-				totalTokens: 0,
-				cost: {
-					input: 0,
-					output: 0,
-					cacheRead: 0,
-					cacheWrite: 0,
-					total: 0,
-				},
-			},
-			stopReason: "stop",
-			timestamp: Date.now(),
-		});
+		seedTurns(sm, [
+			{ user: "keep turn 0", assistant: "reply 0" },
+			{ user: "BANANA forget this", assistant: "forgotten" },
+			{ user: "keep tip", assistant: "reply tip" },
+		]);
 
 		const turns = turnsFromBranch(sm.getBranch() as SessionEntry[]);
 		const plan = planForgetfulRewrite(turns, /banana/i, "banana");
 		expect(plan.ok).toBe(true);
 		if (!plan.ok) return;
 
-		const ctx = {
-			sessionManager: sm,
-			ui: { notify: () => {}, confirm: async () => true },
-		} as unknown as ExtensionCommandContext;
-
 		const { labeledRootId, clonedCount, tipId } = growForgetfulBranch(
-			ctx,
+			growCtx(sm),
 			plan,
 		);
 		expect(clonedCount).toBe(plan.keptTurns.flat().length);
@@ -649,59 +492,19 @@ describe("growForgetfulBranch", () => {
 		expect(labeled.type).toBe("message");
 		expect(labeled.message.role).toBe("user");
 		expect(sm.getLabel(labeledRootId)).toMatch(/plucked/);
-		// Tip is the last kept clone, not the label entry.
 		expect(sm.getEntry(tipId)?.type).not.toBe("label");
 	});
 
-	test("when the branch tip matches the regex, forgetful branch still has the kept turns", async () => {
-		// Theory: /pluck <regex> where the tip message (the turn right before the
-		// command) matches → forgetful side shows nothing. Tip must be forgettable
-		// without wiping the branch you continue on.
-		const { dirname } = await import("node:path");
-		const { realpath } = await import("node:fs/promises");
-		const piBin = Bun.which("pi");
-		if (!piBin) throw new Error("pi binary not found on PATH");
-		const { SessionManager } = await import(
-			`${dirname(await realpath(piBin))}/core/session-manager.js`
-		);
-
-		const sm = SessionManager.inMemory();
-		const ts = () => new Date().toISOString();
-		const assistant = (text: string) =>
-			sm.appendMessage({
-				role: "assistant",
-				content: [{ type: "text", text }],
-				api: "test",
-				provider: "test",
-				model: "test",
-				usage: {
-					input: 0,
-					output: 0,
-					cacheRead: 0,
-					cacheWrite: 0,
-					totalTokens: 0,
-					cost: {
-						input: 0,
-						output: 0,
-						cacheRead: 0,
-						cacheWrite: 0,
-						total: 0,
-					},
-				},
-				stopReason: "stop",
-				timestamp: Date.now(),
-			});
-
-		sm.appendMessage({ role: "user", content: "keep turn 0", timestamp: ts() });
-		assistant("reply 0");
-		sm.appendMessage({ role: "user", content: "keep turn 1", timestamp: ts() });
-		assistant("reply 1");
-		sm.appendMessage({
-			role: "user",
-			content: "tip mentions BANANA right before /pluck",
-			timestamp: ts(),
-		});
-		assistant("tip assistant also says banana");
+	test("when the branch tip matches the regex, forgetful branch still has the kept turns", () => {
+		const sm = makeSm();
+		seedTurns(sm, [
+			{ user: "keep turn 0", assistant: "reply 0" },
+			{ user: "keep turn 1", assistant: "reply 1" },
+			{
+				user: "tip mentions BANANA right before /pluck",
+				assistant: "tip assistant also says banana",
+			},
+		]);
 
 		const tipLeafId = sm.getLeafId();
 		expect(tipLeafId).toBeTruthy();
@@ -713,57 +516,17 @@ describe("growForgetfulBranch", () => {
 		expect(plan.ok).toBe(true);
 		if (!plan.ok) return;
 
-		// Tip turn is the one that matched and must be omitted from the plan.
 		expect(plan.skippedCount).toBe(1);
 		expect(plan.keptTurns.length).toBe(2);
 		const keptFlat = plan.keptTurns.flat();
 		expect(keptFlat.some((e) => e.id === tipLeafId)).toBe(false);
 
-		const ctx = {
-			sessionManager: sm,
-			ui: { notify: () => {}, confirm: async () => true },
-		} as unknown as ExtensionCommandContext;
-
 		const { labeledRootId, labelText, clonedCount, tipId } =
-			growForgetfulBranch(ctx, plan);
+			growForgetfulBranch(growCtx(sm), plan);
 		expect(sm.getLabel(labeledRootId)).toBe(labelText);
 		expect(clonedCount).toBe(keptFlat.length);
 		expect(sm.getEntry(labeledRootId)?.message.role).toBe("user");
-
-		const byParent = new Map<string, SessionEntry[]>();
-		for (const entry of sm.getEntries() as SessionEntry[]) {
-			if (!entry.parentId) continue;
-			const list = byParent.get(entry.parentId) ?? [];
-			list.push(entry);
-			byParent.set(entry.parentId, list);
-		}
-
-		const forgetfulUserTurns: SessionEntry[] = [];
-		const stack = [labeledRootId];
-		const seen = new Set<string>();
-		while (stack.length > 0) {
-			const id = stack.pop()!;
-			if (seen.has(id)) continue;
-			seen.add(id);
-			const entry = sm.getEntry(id) as SessionEntry | undefined;
-			if (!entry) continue;
-			if (entry.type === "message" && entry.message.role === "user") {
-				forgetfulUserTurns.push(entry);
-			}
-			for (const child of byParent.get(id) ?? []) {
-				if (child.type === "label") continue;
-				stack.push(child.id);
-			}
-		}
-
-		expect(forgetfulUserTurns.length).toBe(2);
-		for (const entry of forgetfulUserTurns) {
-			const text =
-				typeof entry.message.content === "string"
-					? entry.message.content
-					: "";
-			expect(text).not.toMatch(/banana/i);
-		}
+		expect(countForgetfulUserTurns(sm, labeledRootId)).toBe(2);
 
 		const forgetfulTip = sm.getEntry(tipId) as SessionEntry;
 		expect(forgetfulTip.type).toBe("message");

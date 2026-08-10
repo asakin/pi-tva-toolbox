@@ -76,6 +76,10 @@ pi install /path/to/pi-pluck
 bun test
 ```
 
+Integration tests import `SessionManager.inMemory` from the
+`@earendil-works/pi-coding-agent` peer dependency (resolved via your `pi`
+install).
+
 ## License
 
 MIT

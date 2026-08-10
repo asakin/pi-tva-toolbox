@@ -4,6 +4,7 @@ import type {
 	SessionEntry,
 } from "@earendil-works/pi-coding-agent";
 import type { PluckPlan } from "./plan-forgetful-rewrite.ts";
+import { formatPattern } from "./format-pattern.ts";
 
 export type GrowForgetfulBranchResult = {
 	/** Id of the labeled entry — first user message on the forgetful branch. */
@@ -108,7 +109,7 @@ export function buildLabelText(
 	plan: Extract<PluckPlan, { ok: true }>,
 	labelTime = new Date().toTimeString().slice(0, 5),
 ): string {
-	return `plucked ${plan.skippedCount}/${plan.originalTurnCount} /${plan.regexStr}/i ${labelTime}`;
+	return `plucked ${plan.skippedCount}/${plan.originalTurnCount} ${formatPattern(plan.regexStr)} ${labelTime}`;
 }
 
 /** Prefer the first user message on the clone chain; fall back to the first clone. */

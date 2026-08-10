@@ -14,6 +14,8 @@ export { planForgetfulRewrite };
 export { growForgetfulBranch, buildLabelText } from "./grow-forgetful-branch.ts";
 /** Confirm-dialog body — plain copy for a yes/no decision. */
 export { buildConfirmMessage } from "./build-confirm-message.ts";
+/** Display /pattern/i with escaped slashes. */
+export { formatPattern } from "./format-pattern.ts";
 
 /** One conversation turn: a user message plus everything until the next user message. */
 export type Turn = SessionEntry[];
@@ -61,23 +63,21 @@ export function splitPathIntoTurns(ctx: ExtensionCommandContext): Turn[] {
 
 /**
  * Build the success summary string. The handler notifies with it.
- * Remind the user they are still on the trunk (/tree to jump to the labeled root).
+ * Keep it human: label + counts + how to jump — no raw entry ids.
  */
 export function buildSummaryMessage(
 	plan: Extract<PluckPlan, { ok: true }>,
-	labeledRootId: string,
+	_labeledRootId: string,
 	labelText: string,
 	clonedCount?: number,
-	tipId?: string,
+	_tipId?: string,
 ): string {
 	const clonePart =
-		clonedCount === undefined
-			? ""
-			: ` Cloned ${clonedCount} entries (tip ${tipId ?? "?"}).`;
+		clonedCount === undefined ? "" : ` Cloned ${clonedCount} entries.`;
 	return (
-		`Created forgetful branch labeled "${labelText}" (root ${labeledRootId}).` +
+		`Created forgetful branch labeled "${labelText}".` +
 		clonePart +
 		` Forgot ${plan.skippedCount} of ${plan.originalTurnCount} turn(s).` +
-		` Still on your current trunk — open /tree and select that label; continue from the tip under it.`
+		` Still on your current trunk — open /tree, select that label, continue from the tip under it.`
 	);
 }

@@ -219,19 +219,34 @@ describe("planForgetfulRewrite", () => {
 });
 
 describe("buildConfirmMessage", () => {
-	test("includes remain/forgotten stats and the regex", () => {
+	test("includes remain/forgotten stats, regex, and turn previews", () => {
 		const message = buildConfirmMessage(okPlan());
 		expect(message).toMatch(/1/);
 		expect(message).toMatch(/banana/i);
 		expect(message).toMatch(/2|keep/i);
+		expect(message).toMatch(/Turns to forget:/i);
+		expect(message).toMatch(/talk about banana/);
+		expect(message).not.toMatch(/Create this side-branch/i);
 	});
 
 	test("warns when the session head matched and was kept", () => {
 		const message = buildConfirmMessage(
-			okPlan({ rootProtected: true, skippedCount: 1 }),
+			okPlan({
+				rootProtected: true,
+				skippedCount: 1,
+				forgottenPreviews: ["hi"],
+				keptTurnCount: 2,
+			}),
 		);
-		expect(message).toMatch(/initial|session head|first user|prompt/i);
-		expect(message).toMatch(/never|keep|cannot forget|will keep/i);
+		expect(message).toMatch(/session head|first user|prompt/i);
+		expect(message).toMatch(/kept|Keeping/i);
+		expect(message).toMatch(/Turns to forget:/i);
+		expect(message).toMatch(/\bhi\b/);
+	});
+
+	test("escapes slashes in the displayed pattern", () => {
+		const message = buildConfirmMessage(okPlan({ regexStr: "foo/bar" }));
+		expect(message).toMatch(/\/foo\\\/bar\/i/);
 	});
 });
 
@@ -677,9 +692,9 @@ describe("buildLabelText", () => {
 });
 
 describe("buildSummaryMessage", () => {
-	test("mentions the labeled root and that the user is still on the trunk", () => {
+	test("mentions the label and that the user is still on the trunk", () => {
 		const plan = okPlan();
-		const labelText = "plucked 1/3 /banana/ 12:00";
+		const labelText = "plucked 1/3 /banana/i 12:00";
 		const message = buildSummaryMessage(
 			plan,
 			"root-1",
@@ -687,9 +702,10 @@ describe("buildSummaryMessage", () => {
 			12,
 			"tip-1",
 		);
-		expect(message).toMatch(/root-1|plucked 1\/3/);
+		expect(message).toMatch(/plucked 1\/3/);
 		expect(message).toMatch(/Cloned 12/);
-		expect(message).toMatch(/tip-1/);
+		expect(message).not.toMatch(/root-1/);
+		expect(message).not.toMatch(/tip-1/);
 		expect(message).toMatch(/\/tree|trunk|still on/i);
 	});
 });

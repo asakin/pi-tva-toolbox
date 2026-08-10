@@ -1,8 +1,22 @@
 {
   "name": "pi-pluck",
-  "private": true,
+  "version": "0.1.0",
   "type": "module",
+  "description": "Pi extension: /pluck — create a labeled forgetful side-branch by omitting turns that match a regex.",
+  "keywords": ["pi-package", "pi-extension", "pi-coding-agent"],
+  "license": "MIT",
+  "author": "Ariel Sakin",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/asakin/pi-pluck"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
   "pi": {
     "extensions": ["./index.ts"]
+  },
+  "scripts": {
+    "test": "bun test tests/pluck-steps.test.ts"
   }
 }

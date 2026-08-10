@@ -15,8 +15,11 @@ Confirm the plan, then open `/tree` and find `[plucked N/M /pattern/i HH:MM]` on
 the first user message of the new branch. Continue from the tip under that label.
 
 - Match text: user text, assistant text, toolCall name/args — never tool results.
+- Matching is **turn-granular**: if any searchable entry in a turn matches, the
+  whole turn is omitted (including a user prompt that did not match).
 - The session head (first user prompt) is never dropped.
-- Catch-all patterns (every turn matches) are rejected.
+- Catch-all patterns are rejected when every **user-led** turn matches (preamble
+  alone does not save a wipe).
 - Resume stays on the trunk (a plain `custom` bookkeeping entry anchors the leaf).
 
 ## Mental model
@@ -79,6 +82,17 @@ bun test
 Integration tests import `SessionManager.inMemory` from the
 `@earendil-works/pi-coding-agent` peer dependency (resolved via your `pi`
 install).
+
+## Sharp edges
+
+- **Session growth.** Grow clones the full kept chain onto a parallel branch, so
+  forgetting 1 of 100 turns still duplicates ~99 turns of entries (including tool
+  results) into the session file. That is intentional for `/tree` UX.
+- **Private SessionManager API.** Cloning with remapped ids uses `_appendEntry`
+  (not part of the public extension surface). Upstream renames will break grow
+  until this extension is updated.
+- **Not in scope (yet).** Regex ReDoS timeouts, auto-jump to the forgetful tip,
+  and rewriting grow to use only public `append*` helpers.
 
 ## License
 

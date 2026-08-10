@@ -3,42 +3,51 @@ import type {
 	ExtensionCommandContext,
 } from "@earendil-works/pi-coding-agent";
 import {
-	applyForgetfulBranch,
-	assertPluckMutators,
 	buildConfirmMessage,
-	buildLabelText,
-	planPluck,
-	type PluckSessionMutators,
-} from "./src/pluck-core.ts";
+	buildSummaryMessage,
+	growForgetfulBranch,
+	labelBranch,
+	planForgetfulRewrite,
+	splitPathIntoTurns,
+	validateRegex,
+} from "./src/pluck-steps.ts";
+
+function errorMessage(error: unknown): string {
+	return error instanceof Error ? error.message : String(error);
+}
 
 export default function (pi: ExtensionAPI) {
 	pi.registerCommand("pluck", {
 		description:
-			"Create a labeled forgetful side-branch omitting turns that match a regex (stays on current leaf; jump via /tree to the plucked tip; resume of this file may open on that tip)",
+			"Create a labeled forgetful side-branch omitting turns that match a regex "
+			+ "(stays on current leaf; jump via /tree to the plucked tip; "
+			+ "resume of this file may open on that branch)",
+
+		// TUI talk and every ending return live here. Steps only compute / mutate.
 		handler: async (args: string, ctx: ExtensionCommandContext) => {
 			const regexStr = args.trim();
-			if (!regexStr) {
-				ctx.ui.notify("Usage: /pluck <regex>", "error");
-				return;
-			}
 
 			let regex: RegExp;
 			try {
-				regex = new RegExp(regexStr, "i");
-			} catch (e: unknown) {
-				const message = e instanceof Error ? e.message : String(e);
-				ctx.ui.notify(`Invalid regex: ${message}`, "error");
+				regex = validateRegex(regexStr);
+			} catch (error) {
+				ctx.ui.notify(
+					`pluck: invalid regex /${regexStr}/: ${errorMessage(error)}`,
+					"error",
+				);
 				return;
 			}
 
-			const originalLeafId = ctx.sessionManager.getLeafId();
-			if (!originalLeafId) {
-				ctx.ui.notify("pluck: this session has no entries yet.", "info");
+			let turns;
+			try {
+				turns = splitPathIntoTurns(ctx);
+			} catch (error) {
+				ctx.ui.notify(`pluck: ${errorMessage(error)}`, "error");
 				return;
 			}
 
-			const path = ctx.sessionManager.getBranch();
-			const plan = planPluck(path, regex);
+			// Decide what to keep, what to forget, and where the side-branch starts.
+			const plan = planForgetfulRewrite(turns, regex, regexStr);
 
 			if (!plan.ok) {
 				if (plan.reason === "no_match") {
@@ -48,67 +57,39 @@ export default function (pi: ExtensionAPI) {
 					);
 				} else {
 					ctx.ui.notify(
-						"pluck: nowhere to hang the forgetful branch (no shared prefix).",
+						"pluck: nowhere useful to grow a forgetful branch.",
 						"error",
 					);
 				}
 				return;
 			}
 
-			const labelTime = new Date().toTimeString().slice(0, 5);
-			const labelText = buildLabelText({
-				skippedCount: plan.skippedCount,
-				originalTurnCount: plan.originalTurnCount,
-				regexStr,
-				labelTime,
-			});
-
+			// Show counts (and warn if the first prompt matched but must stay).
 			const confirmed = await ctx.ui.confirm(
 				"Create forgetful branch?",
-				buildConfirmMessage({
-					regexStr,
-					skippedCount: plan.skippedCount,
-					keptTurnCount: plan.keptTurnCount,
-					rootProtected: plan.rootProtected,
-					labelOnly: plan.labelOnly,
-				}),
+				buildConfirmMessage(plan),
 			);
 			if (!confirmed) {
 				ctx.ui.notify("pluck: aborted.", "info");
 				return;
 			}
 
-			// Mutate through the live SessionManager only (not pi.setLabel), so
-			// branch/append/label share one leaf pointer.
-			const sm = ctx.sessionManager as unknown as PluckSessionMutators;
+			// Build the forgetful side-branch; leave the user on their current leaf.
+			let newBranchTip: string;
+			let labelText: string;
 			try {
-				assertPluckMutators(sm);
-			} catch (err: unknown) {
-				const message = err instanceof Error ? err.message : String(err);
-				ctx.ui.notify(message, "error");
+				newBranchTip = growForgetfulBranch(ctx, plan);
+				labelText = labelBranch(ctx, newBranchTip, plan);
+			} catch (error) {
+				ctx.ui.notify(`pluck failed: ${errorMessage(error)}`, "error");
 				return;
 			}
 
-			try {
-				const { tipId, cloneCount } = applyForgetfulBranch({
-					sm,
-					plan,
-					originalLeafId,
-					labelText,
-				});
-				ctx.ui.notify(
-					`Created forgetful tip "${labelText}" (tip ${tipId}, ${cloneCount} cloned entries). Still on your current branch — open /tree and select that label to continue forgetfully.`,
-					"info",
-				);
-			} catch (err: unknown) {
-				try {
-					sm.branch(originalLeafId);
-				} catch {
-					/* best-effort restore */
-				}
-				const message = err instanceof Error ? err.message : String(err);
-				ctx.ui.notify(`pluck failed: ${message}`, "error");
-			}
+			// User is still on the original leaf; they jump via /tree when they want.
+			ctx.ui.notify(
+				buildSummaryMessage(plan, newBranchTip, labelText),
+				"info",
+			);
 		},
 	});
 }

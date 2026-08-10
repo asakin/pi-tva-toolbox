@@ -73,15 +73,6 @@ export function growForgetfulBranch(
 		const labeledRootId = findLabelTargetId(clones);
 		const tipId = clones[clones.length - 1]!.id;
 
-		if (
-			labeledRootId === originalLeafId ||
-			labeledRootId === plan.divergenceParentId
-		) {
-			throw new Error(
-				`pluck: labeled root collided with trunk id ${labeledRootId}`,
-			);
-		}
-
 		sm.appendLabelChange(labeledRootId, labelText);
 
 		// Trunk bookkeeping so the last persisted line is on the caller's path.

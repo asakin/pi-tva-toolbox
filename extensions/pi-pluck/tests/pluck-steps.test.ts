@@ -97,7 +97,6 @@ function okPlan(
 		keptTurnCount: 2,
 		rootProtected: false,
 		divergenceParentId: "a1",
-		labelOnly: false,
 		forgottenPreviews: ["talk about banana"],
 		...overrides,
 	};
@@ -236,8 +235,7 @@ describe("planForgetfulRewrite", () => {
 		if (!plan.ok) return;
 		expect(plan.skippedCount).toBe(1);
 		expect(plan.keptTurns.map((t) => t[0]!.id)).toEqual(["u1"]);
-		// Hang may sit at the tip, but grow still clones the kept chain.
-		expect(plan.labelOnly).toBe(false);
+		// Grow still clones the kept chain even when the hang sits at the tip.
 		expect(plan.keptTurns.flat().length).toBeGreaterThan(0);
 	});
 });
@@ -339,7 +337,6 @@ describe("growForgetfulBranch", () => {
 			growForgetfulBranch(ctx, plan);
 		expect(typeof labeledRootId).toBe("string");
 		expect(labeledRootId).not.toBe(originalLeaf);
-		expect(labeledRootId).not.toBe(plan.divergenceParentId);
 		expect(labelText).toMatch(/plucked 1\/3/);
 		expect(labelText).toMatch(/\/banana\/i/);
 		expect(clonedCount).toBe(plan.keptTurns.flat().length);

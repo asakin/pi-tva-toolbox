@@ -16,10 +16,12 @@ export type PluckPlan =
 			keptTurnCount: number;
 			/** True when the first user turn matched and the session head was kept. */
 			rootProtected: boolean;
-			/** Last shared kept ancestor id — hang the side-branch from here. */
+			/**
+			 * Last shared kept ancestor id on the original path.
+			 * Bookkeeping only — grow clones the full kept chain as a parallel root/sibling;
+			 * it does not hang new nodes from this id.
+			 */
 			divergenceParentId: string;
-			/** Nothing left to clone after the cut; tip will be label-only. */
-			labelOnly: boolean;
 			/**
 			 * One short line per forgotten turn (for confirm UI).
 			 * For rootProtected head turns, previews the forgotten assistant side — not the kept prompt.
@@ -142,8 +144,9 @@ function findFirstUserId(turns: Turn[]): string | null {
  * - If the first user turn matches, keep that prompt and forget the rest of its cycle
  *   (rootProtected). Dropping the session head would rewrite shared history or force
  *   a multi-root tree.
- * - Hang the side-branch from the last entry that is still shared with the original
- *   path (divergenceParentId). If that shared prefix is empty, the plan is not useful.
+ * - Grow clones the full kept chain in parallel. divergenceParentId records the last
+ *   shared kept ancestor on the original path (bookkeeping / debugging only).
+ * - If the shared prefix with the original path is empty, the plan is not useful.
  */
 export function planForgetfulRewrite(
 	turns: Turn[],
@@ -210,8 +213,8 @@ export function planForgetfulRewrite(
 		return { ok: false, reason: "catches_all", regexStr };
 	}
 
-	// Shared prefix with the original path = trunk we don't clone. Side-branch hangs
-	// from the last shared entry (not from session root).
+	// Shared prefix with the original path — recorded as divergenceParentId for
+	// bookkeeping. Grow still clones the entire kept chain in parallel.
 	const keptFlat = keptTurns.flat();
 	let sharedLen = 0;
 	while (
@@ -228,10 +231,6 @@ export function planForgetfulRewrite(
 	}
 
 	const divergenceParentId = path[sharedLen - 1]!.id;
-	// Grow clones the entire kept chain (not only the post-hang suffix), so a
-	// plan with kept entries is never "label-only" just because the hang is at
-	// the tip (e.g. the only match was the current leaf turn).
-	const labelOnly = keptFlat.length === 0;
 
 	// "Keeps N" in confirm copy means turns after the protected head, not including it.
 	let keptTurnCount = keptTurns.length;
@@ -246,7 +245,6 @@ export function planForgetfulRewrite(
 		keptTurnCount,
 		rootProtected,
 		divergenceParentId,
-		labelOnly,
 		forgottenPreviews,
 	};
 }

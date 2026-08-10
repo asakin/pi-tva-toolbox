@@ -56,12 +56,8 @@ export function buildConfirmMessage(
 		}
 	}
 
-	lines.push("");
-	if (plan.labelOnly) {
-		lines.push(
-			"After the cut, nothing is left to keep — the forgetful branch will be label-only.",
-		);
-	} else if (plan.rootProtected) {
+		lines.push("");
+	if (plan.rootProtected) {
 		lines.push(
 			`Keeps ${plan.keptTurnCount} turn(s) after that protected prompt.`,
 		);

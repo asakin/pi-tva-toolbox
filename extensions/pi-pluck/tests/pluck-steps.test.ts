@@ -346,6 +346,74 @@ describe("growForgetfulBranch", () => {
 		expect(leaf?.parentId).toBe(originalLeaf);
 	});
 
+	test("restores trunk leaf if grow fails after clones", async () => {
+		const { dirname } = await import("node:path");
+		const { realpath } = await import("node:fs/promises");
+		const piBin = Bun.which("pi");
+		if (!piBin) throw new Error("pi binary not found on PATH");
+		const { SessionManager } = await import(
+			`${dirname(await realpath(piBin))}/core/session-manager.js`
+		);
+
+		const sm = SessionManager.inMemory();
+		const ts = () => new Date().toISOString();
+		const assistant = (text: string) =>
+			sm.appendMessage({
+				role: "assistant",
+				content: [{ type: "text", text }],
+				api: "test",
+				provider: "test",
+				model: "test",
+				usage: {
+					input: 0,
+					output: 0,
+					cacheRead: 0,
+					cacheWrite: 0,
+					totalTokens: 0,
+					cost: {
+						input: 0,
+						output: 0,
+						cacheRead: 0,
+						cacheWrite: 0,
+						total: 0,
+					},
+				},
+				stopReason: "stop",
+				timestamp: Date.now(),
+			});
+
+		sm.appendMessage({ role: "user", content: "hello", timestamp: ts() });
+		assistant("hi");
+		sm.appendMessage({
+			role: "user",
+			content: "talk about banana",
+			timestamp: ts(),
+		});
+		assistant("about banana");
+		sm.appendMessage({ role: "user", content: "continue", timestamp: ts() });
+		assistant("continuing");
+
+		const originalLeaf = sm.getLeafId();
+		expect(originalLeaf).toBeTruthy();
+
+		const turns = turnsFromBranch(sm.getBranch() as SessionEntry[]);
+		const plan = planForgetfulRewrite(turns, /banana/i, "banana");
+		expect(plan.ok).toBe(true);
+		if (!plan.ok) return;
+
+		sm.appendLabelChange = () => {
+			throw new Error("boom: label failed");
+		};
+
+		const ctx = {
+			sessionManager: sm,
+			ui: { notify: () => {}, confirm: async () => true },
+		} as unknown as ExtensionCommandContext;
+
+		expect(() => growForgetfulBranch(ctx, plan)).toThrow(/boom: label failed/);
+		expect(sm.getLeafId()).toBe(originalLeaf);
+	});
+
 	test("forget N of M turns → forgetful branch has M−N turns (not a length-1 stub)", async () => {
 		// Repro: after /pluck commit (56/130), /tree showed a labeled side-branch
 		// with only the first kept turn + aborted assistant — nowhere to continue.

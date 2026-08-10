@@ -62,46 +62,58 @@ export function growForgetfulBranch(
 		remapClonedEntry(entry, index, toClone, idMap),
 	);
 
-	for (const entry of clones) {
-		sm._appendEntry(entry);
+	let leafLeftTrunk = false;
+	let landedOnTrunk = false;
+	try {
+		for (const entry of clones) {
+			sm._appendEntry(entry);
+			leafLeftTrunk = true;
+		}
+
+		const labeledRootId = findLabelTargetId(clones);
+		const tipId = clones[clones.length - 1]!.id;
+
+		if (
+			labeledRootId === originalLeafId ||
+			labeledRootId === plan.divergenceParentId
+		) {
+			throw new Error(
+				`pluck: labeled root collided with trunk id ${labeledRootId}`,
+			);
+		}
+
+		sm.appendLabelChange(labeledRootId, labelText);
+
+		// Trunk bookkeeping so the last persisted line is on the caller's path.
+		sm.branch(originalLeafId);
+		const bookkeepingId = sm.appendCustomEntry("pi-pluck", {
+			kind: "trunk-anchor",
+			labeledRootId,
+			tipId,
+			clonedCount: clones.length,
+			labelText,
+			divergenceParentId: plan.divergenceParentId,
+		});
+		if (sm.getLeafId() !== bookkeepingId) {
+			throw new Error(
+				`pluck: failed to land on trunk bookkeeping (leaf ${sm.getLeafId()})`,
+			);
+		}
+		landedOnTrunk = true;
+
+		return {
+			labeledRootId,
+			tipId,
+			clonedCount: clones.length,
+			labelText,
+		};
+	} finally {
+		// If clones (or label) advanced the leaf and we never finished trunk
+		// bookkeeping, put the caller back on the original trunk leaf.
+		if (leafLeftTrunk && !landedOnTrunk) {
+			sm.branch(originalLeafId);
+		}
 	}
-
-	const labeledRootId = findLabelTargetId(clones);
-	const tipId = clones[clones.length - 1]!.id;
-
-	if (
-		labeledRootId === originalLeafId ||
-		labeledRootId === plan.divergenceParentId
-	) {
-		throw new Error(
-			`pluck: labeled root collided with trunk id ${labeledRootId}`,
-		);
-	}
-
-	sm.appendLabelChange(labeledRootId, labelText);
-
-	// Trunk bookkeeping so the last persisted line is on the caller's path.
-	sm.branch(originalLeafId);
-	const bookkeepingId = sm.appendCustomEntry("pi-pluck", {
-		kind: "trunk-anchor",
-		labeledRootId,
-		tipId,
-		clonedCount: clones.length,
-		labelText,
-		divergenceParentId: plan.divergenceParentId,
-	});
-	if (sm.getLeafId() !== bookkeepingId) {
-		throw new Error(
-			`pluck: failed to land on trunk bookkeeping (leaf ${sm.getLeafId()})`,
-		);
-	}
-
-	return {
-		labeledRootId,
-		tipId,
-		clonedCount: clones.length,
-		labelText,
-	};
 }
 
 /** Label text for /tree: plucked X/Y, regex, clock time. */

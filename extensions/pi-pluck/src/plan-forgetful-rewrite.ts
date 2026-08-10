@@ -194,15 +194,19 @@ export function planForgetfulRewrite(
 		return { ok: false, reason: "catches_all", regexStr };
 	}
 
-	// Preamble-only survivors (model_change, etc.) are not a useful forgetful branch:
-	// /tree would label a non-user node. Treat as catch-all.
-	const keptHasUserTurn = keptTurns.some((turn) =>
+	// Preamble (model_change, etc.) often has no matchable text, so it never
+	// "matches" — but if every user-led turn matched, the conversation is wiped
+	// (rootProtected would leave only a stub head). Refuse as catch-all.
+	const userTurns = turns.filter((turn) =>
 		turn.some(
 			(entry) =>
 				entry.type === "message" && entry.message.role === "user",
 		),
 	);
-	if (!keptHasUserTurn) {
+	if (
+		userTurns.length > 0 &&
+		userTurns.every((turn) => turnMatches(turn, regex))
+	) {
 		return { ok: false, reason: "catches_all", regexStr };
 	}
 

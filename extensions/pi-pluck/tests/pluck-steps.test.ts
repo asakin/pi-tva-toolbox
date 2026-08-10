@@ -199,7 +199,7 @@ describe("planForgetfulRewrite", () => {
 		});
 	});
 
-	test("rejects when only preamble survives (no kept user turns)", () => {
+	test("rejects when every user turn matches (preamble-only survivor)", () => {
 		const model = {
 			type: "model_change",
 			id: "m1",
@@ -213,6 +213,8 @@ describe("planForgetfulRewrite", () => {
 			{ type: "text", text: "about banana" },
 		]);
 		const turns = turnsFromBranch([model, u1, a1]);
+		// model_change has no matchable text, so skippedCount < turns.length —
+		// but every user-led turn matched, so refuse as catch-all.
 		const plan = planForgetfulRewrite(turns, /banana/i, "banana");
 		expect(plan).toEqual({
 			ok: false,

@@ -28,13 +28,36 @@ export type PluckPlan =
 	  };
 
 /** Parse/validate the /pluck argument into a case-insensitive RegExp. */
-export function validateRegex(_regexStr: string): RegExp {
-	throw new Error("not implemented: validateRegex");
+export function validateRegex(regexStr: string): RegExp {
+	if (!regexStr) {
+		throw new Error("Usage: /pluck <regex> (pattern is required)");
+	}
+	try {
+		return new RegExp(regexStr, "i");
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		throw new Error(`Invalid regex: ${message}`);
+	}
 }
 
 /** Current branch path, split into turns. Throws if the session has no entries. */
-export function splitPathIntoTurns(_ctx: ExtensionCommandContext): Turn[] {
-	throw new Error("not implemented: splitPathIntoTurns");
+export function splitPathIntoTurns(ctx: ExtensionCommandContext): Turn[] {
+	const path = ctx.sessionManager.getBranch();
+	if (path.length === 0) {
+		throw new Error("pluck: this session has no entries yet.");
+	}
+
+	const turns: Turn[] = [];
+	let current: SessionEntry[] = [];
+	for (const entry of path) {
+		if (entry.type === "message" && entry.message.role === "user") {
+			if (current.length > 0) turns.push(current);
+			current = [];
+		}
+		current.push(entry);
+	}
+	if (current.length > 0) turns.push(current);
+	return turns;
 }
 
 /** Rich forgetful rewrite plan (keep/omit, hang-point, stats, root-head flag). */

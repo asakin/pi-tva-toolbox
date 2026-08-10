@@ -1,0 +1,177 @@
+import type { SessionEntry } from "@earendil-works/pi-coding-agent";
+import type { Turn } from "./pluck-steps.ts";
+
+export type PluckPlan =
+	| {
+			ok: false;
+			reason: "no_match" | "not_useful";
+			regexStr: string;
+	  }
+	| {
+			ok: true;
+			regexStr: string;
+			keptTurns: Turn[];
+			skippedCount: number;
+			originalTurnCount: number;
+			keptTurnCount: number;
+			/** True when the first user turn matched and the session head was kept. */
+			rootProtected: boolean;
+			/** Last shared kept ancestor id — hang the side-branch from here. */
+			divergenceParentId: string;
+			/** Nothing left to clone after the cut; tip will be label-only. */
+			labelOnly: boolean;
+	  };
+
+function contentToText(content: unknown): string {
+	if (typeof content === "string") return content;
+	if (!Array.isArray(content)) return "";
+	const parts: string[] = [];
+	for (const block of content) {
+		if (!block || typeof block !== "object") continue;
+		const b = block as { type?: string; text?: string };
+		if (b.type === "text" && typeof b.text === "string") parts.push(b.text);
+	}
+	return parts.join("\n");
+}
+
+/**
+ * Text we are allowed to match against for one entry.
+ * User text, assistant text, tool name + args — never tool result payloads.
+ */
+function entryMatchText(entry: SessionEntry): string {
+	if (entry.type !== "message") return "";
+	const msg = entry.message;
+	// Trap: tool *results* must never match — only user/assistant text and toolCall name+args.
+	if (msg.role === "toolResult") return "";
+	if (msg.role === "user") return contentToText(msg.content);
+	if (msg.role === "assistant") {
+		const parts: string[] = [];
+		const content = Array.isArray(msg.content) ? msg.content : [];
+		for (const block of content) {
+			if (!block || typeof block !== "object") continue;
+			const b = block as {
+				type?: string;
+				text?: string;
+				name?: string;
+				arguments?: unknown;
+			};
+			if (b.type === "text" && typeof b.text === "string") parts.push(b.text);
+			if (b.type === "toolCall") {
+				if (typeof b.name === "string") parts.push(b.name);
+				try {
+					parts.push(JSON.stringify(b.arguments ?? {}));
+				} catch {
+					parts.push(String(b.arguments));
+				}
+			}
+		}
+		return parts.join("\n");
+	}
+	return "";
+}
+
+/** A turn matches if any searchable entry in it matches the regex. */
+function turnMatches(turn: Turn, regex: RegExp): boolean {
+	for (const entry of turn) {
+		const text = entryMatchText(entry);
+		// Require non-empty text so patterns like /.*/ don't match blank/preamble-only entries.
+		if (text && regex.test(text)) return true;
+	}
+	return false;
+}
+
+/** Id of the very first user message on the path — the session head we never drop. */
+function findFirstUserId(turns: Turn[]): string | null {
+	for (const turn of turns) {
+		for (const entry of turn) {
+			if (entry.type === "message" && entry.message.role === "user") {
+				return entry.id;
+			}
+		}
+	}
+	return null;
+}
+
+/**
+ * Decide what a forgetful rewrite would look like — pure planning, no session writes.
+ *
+ * - Keep turns that do not match; omit turns that do.
+ * - If the first user turn matches, keep that prompt and forget the rest of its cycle
+ *   (rootProtected). Dropping the session head would rewrite shared history or force
+ *   a multi-root tree.
+ * - Hang the side-branch from the last entry that is still shared with the original
+ *   path (divergenceParentId). If that shared prefix is empty, the plan is not useful.
+ */
+export function planForgetfulRewrite(
+	turns: Turn[],
+	regex: RegExp,
+	regexStr: string,
+): PluckPlan {
+	const path = turns.flat();
+	const firstUserId = findFirstUserId(turns);
+
+	const keptTurns: Turn[] = [];
+	let skippedCount = 0;
+	let rootProtected = false;
+
+	for (const turn of turns) {
+		if (!turnMatches(turn, regex)) {
+			keptTurns.push(turn);
+			continue;
+		}
+
+		skippedCount++;
+		const userIdx = firstUserId
+			? turn.findIndex((entry) => entry.id === firstUserId)
+			: -1;
+
+		// Session head must stay: dropping it rewrites every other branch's history
+		// or forces a multi-root tree. Keep the prompt; forget the rest of that cycle.
+		if (userIdx >= 0 && !rootProtected) {
+			rootProtected = true;
+			keptTurns.push(turn.slice(0, userIdx + 1));
+		}
+		// Matching turn with no protected head → omit entirely.
+	}
+
+	if (skippedCount === 0) {
+		return { ok: false, reason: "no_match", regexStr };
+	}
+
+	// Shared prefix with the original path = trunk we don't clone. Side-branch hangs
+	// from the last shared entry (not from session root).
+	const keptFlat = keptTurns.flat();
+	let sharedLen = 0;
+	while (
+		sharedLen < keptFlat.length &&
+		sharedLen < path.length &&
+		keptFlat[sharedLen]!.id === path[sharedLen]!.id
+	) {
+		sharedLen++;
+	}
+
+	// e.g. matching preamble-only before any user — nowhere legal to hang.
+	if (sharedLen === 0) {
+		return { ok: false, reason: "not_useful", regexStr };
+	}
+
+	const divergenceParentId = path[sharedLen - 1]!.id;
+	const toCloneCount = keptFlat.length - sharedLen;
+	const labelOnly = toCloneCount === 0;
+
+	// "Keeps N" in confirm copy means turns after the protected head, not including it.
+	let keptTurnCount = keptTurns.length;
+	if (rootProtected) keptTurnCount = Math.max(0, keptTurnCount - 1);
+
+	return {
+		ok: true,
+		regexStr,
+		keptTurns,
+		skippedCount,
+		originalTurnCount: turns.length,
+		keptTurnCount,
+		rootProtected,
+		divergenceParentId,
+		labelOnly,
+	};
+}

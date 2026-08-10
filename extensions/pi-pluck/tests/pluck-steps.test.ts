@@ -5,9 +5,9 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import {
 	buildConfirmMessage,
+	buildLabelText,
 	buildSummaryMessage,
 	growForgetfulBranch,
-	labelBranch,
 	planForgetfulRewrite,
 	splitPathIntoTurns,
 	type PluckPlan,
@@ -204,25 +204,84 @@ describe("buildConfirmMessage", () => {
 });
 
 describe("growForgetfulBranch", () => {
-	test("returns a tip id and does not move the current leaf", () => {
-		const ctx = mockCtx({});
-		const originalLeaf = ctx.sessionManager.getLeafId();
-		const plan = okPlan();
-		const tipId = growForgetfulBranch(ctx, plan);
+	test("returns a tip id and does not move the current leaf", async () => {
+		const { dirname } = await import("node:path");
+		const { realpath } = await import("node:fs/promises");
+		const piBin = Bun.which("pi");
+		if (!piBin) throw new Error("pi binary not found on PATH");
+		const { SessionManager } = await import(
+			`${dirname(await realpath(piBin))}/core/session-manager.js`
+		);
+
+		const sm = SessionManager.inMemory();
+		const ts = () => new Date().toISOString();
+		const assistant = (text: string) =>
+			sm.appendMessage({
+				role: "assistant",
+				content: [{ type: "text", text }],
+				api: "test",
+				provider: "test",
+				model: "test",
+				usage: {
+					input: 0,
+					output: 0,
+					cacheRead: 0,
+					cacheWrite: 0,
+					totalTokens: 0,
+					cost: {
+						input: 0,
+						output: 0,
+						cacheRead: 0,
+						cacheWrite: 0,
+						total: 0,
+					},
+				},
+				stopReason: "stop",
+				timestamp: Date.now(),
+			});
+
+		sm.appendMessage({ role: "user", content: "hello", timestamp: ts() });
+		assistant("hi");
+		sm.appendMessage({
+			role: "user",
+			content: "talk about banana",
+			timestamp: ts(),
+		});
+		assistant("about banana");
+		sm.appendMessage({ role: "user", content: "continue", timestamp: ts() });
+		assistant("continuing");
+
+		const originalLeaf = sm.getLeafId();
+		expect(originalLeaf).toBeTruthy();
+
+		const turns = turnsFromBranch(sm.getBranch() as SessionEntry[]);
+		const plan = planForgetfulRewrite(turns, /banana/i, "banana");
+		expect(plan.ok).toBe(true);
+		if (!plan.ok) return;
+
+		const ctx = {
+			sessionManager: sm,
+			ui: { notify: () => {}, confirm: async () => true },
+		} as unknown as ExtensionCommandContext;
+
+		const { tipId, labelText } = growForgetfulBranch(ctx, plan);
 		expect(typeof tipId).toBe("string");
 		expect(tipId.length).toBeGreaterThan(0);
-		expect(ctx.sessionManager.getLeafId()).toBe(originalLeaf);
+		expect(sm.getLeafId()).toBe(originalLeaf);
 		expect(tipId).not.toBe(originalLeaf);
+		expect(tipId).not.toBe(plan.divergenceParentId);
+		expect(labelText).toMatch(/plucked 1\/3/);
+		expect(labelText).toMatch(/\/banana\//);
+		expect(sm.getLabel(tipId)).toBe(labelText);
+		expect(sm.getLabel(originalLeaf!)).toBeUndefined();
 	});
 });
 
-describe("labelBranch", () => {
-	test("returns label text with plucked X/Y and the regex", () => {
-		const ctx = mockCtx({});
+describe("buildLabelText", () => {
+	test("formats plucked X/Y and the regex", () => {
 		const plan = okPlan({ skippedCount: 1, originalTurnCount: 3 });
-		const labelText = labelBranch(ctx, "tip-1", plan);
-		expect(labelText).toMatch(/plucked 1\/3/);
-		expect(labelText).toMatch(/\/banana\//);
+		const labelText = buildLabelText(plan, "12:00");
+		expect(labelText).toBe("plucked 1/3 /banana/ 12:00");
 	});
 });
 

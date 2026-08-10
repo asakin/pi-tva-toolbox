@@ -2,32 +2,24 @@ import type {
 	ExtensionCommandContext,
 	SessionEntry,
 } from "@earendil-works/pi-coding-agent";
+import {
+	planForgetfulRewrite,
+	type PluckPlan,
+} from "./plan-forgetful-rewrite.ts";
 
-/** One turn: user message + following entries until the next user message. */
+// Re-export so the handler and tests can import the public steps from one place.
+export type { PluckPlan };
+export { planForgetfulRewrite };
+/** Labeled side-branch growth (clones + tip + label); stays on the caller's leaf. */
+export { growForgetfulBranch, buildLabelText } from "./grow-forgetful-branch.ts";
+
+/** One conversation turn: a user message plus everything until the next user message. */
 export type Turn = SessionEntry[];
 
-export type PluckPlan =
-	| {
-			ok: false;
-			reason: "no_match" | "not_useful";
-			regexStr: string;
-	  }
-	| {
-			ok: true;
-			regexStr: string;
-			keptTurns: Turn[];
-			skippedCount: number;
-			originalTurnCount: number;
-			keptTurnCount: number;
-			/** True when the first user turn matched and the session head was kept. */
-			rootProtected: boolean;
-			/** Last shared kept ancestor id — hang the side-branch from here. */
-			divergenceParentId: string;
-			/** Nothing left to clone after the cut; tip will be label-only. */
-			labelOnly: boolean;
-	  };
-
-/** Parse/validate the /pluck argument into a case-insensitive RegExp. */
+/**
+ * Turn the /pluck argument into a RegExp.
+ * Always case-insensitive. Throws on empty input or bad syntax (handler shows the error).
+ */
 export function validateRegex(regexStr: string): RegExp {
 	if (!regexStr) {
 		throw new Error("Usage: /pluck <regex> (pattern is required)");
@@ -40,7 +32,10 @@ export function validateRegex(regexStr: string): RegExp {
 	}
 }
 
-/** Current branch path, split into turns. Throws if the session has no entries. */
+/**
+ * Read the current branch and split it into turns.
+ * Throws if the session is empty (handler shows the error).
+ */
 export function splitPathIntoTurns(ctx: ExtensionCommandContext): Turn[] {
 	const path = ctx.sessionManager.getBranch();
 	if (path.length === 0) {
@@ -50,6 +45,8 @@ export function splitPathIntoTurns(ctx: ExtensionCommandContext): Turn[] {
 	const turns: Turn[] = [];
 	let current: SessionEntry[] = [];
 	for (const entry of path) {
+		// Each user message opens a new turn. Anything before the first user
+		// (model changes, etc.) stays as its own leading turn.
 		if (entry.type === "message" && entry.message.role === "user") {
 			if (current.length > 0) turns.push(current);
 			current = [];
@@ -60,18 +57,9 @@ export function splitPathIntoTurns(ctx: ExtensionCommandContext): Turn[] {
 	return turns;
 }
 
-/** Rich forgetful rewrite plan (keep/omit, hang-point, stats, root-head flag). */
-export function planForgetfulRewrite(
-	_turns: Turn[],
-	_regex: RegExp,
-	_regexStr: string,
-): PluckPlan {
-	throw new Error("not implemented: planForgetfulRewrite");
-}
-
 /**
- * Confirm dialog body: counts, and a root-head warning when the first prompt
- * matched but must stay. Handler owns the actual ctx.ui.confirm call.
+ * Build the confirm-dialog body from the plan (counts, and a warning if the
+ * first prompt matched but must stay). The handler calls ctx.ui.confirm with this.
  */
 export function buildConfirmMessage(
 	_plan: Extract<PluckPlan, { ok: true }>,
@@ -80,28 +68,8 @@ export function buildConfirmMessage(
 }
 
 /**
- * Grow the forgetful side-branch from the plan's hang-point.
- * Does not move the current leaf.
- */
-export function growForgetfulBranch(
-	_ctx: ExtensionCommandContext,
-	_plan: Extract<PluckPlan, { ok: true }>,
-): string {
-	throw new Error("not implemented: growForgetfulBranch");
-}
-
-/** Label the forgetful tip using plan stats (X/Y, regex, time). Returns label text. */
-export function labelBranch(
-	_ctx: ExtensionCommandContext,
-	_tipId: string,
-	_plan: Extract<PluckPlan, { ok: true }>,
-): string {
-	throw new Error("not implemented: labelBranch");
-}
-
-/**
- * Summary text after a successful pluck (tip exists; user is still on original leaf).
- * Handler owns the ctx.ui.notify call.
+ * Build the success summary string. The handler notifies with it.
+ * Remind the user they are still on the original leaf (/tree to jump).
  */
 export function buildSummaryMessage(
 	_plan: Extract<PluckPlan, { ok: true }>,

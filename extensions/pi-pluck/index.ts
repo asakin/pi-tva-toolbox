@@ -6,7 +6,6 @@ import {
 	buildConfirmMessage,
 	buildSummaryMessage,
 	growForgetfulBranch,
-	labelBranch,
 	planForgetfulRewrite,
 	splitPathIntoTurns,
 	validateRegex,
@@ -74,22 +73,18 @@ export default function (pi: ExtensionAPI) {
 				return;
 			}
 
-			// Build the forgetful side-branch; leave the user on their current leaf.
-			let newBranchTip: string;
+			// Build the labeled forgetful side-branch; leave the user on their current leaf.
+			let tipId: string;
 			let labelText: string;
 			try {
-				newBranchTip = growForgetfulBranch(ctx, plan);
-				labelText = labelBranch(ctx, newBranchTip, plan);
+				({ tipId, labelText } = growForgetfulBranch(ctx, plan));
 			} catch (error) {
 				ctx.ui.notify(`pluck failed: ${errorMessage(error)}`, "error");
 				return;
 			}
 
 			// User is still on the original leaf; they jump via /tree when they want.
-			ctx.ui.notify(
-				buildSummaryMessage(plan, newBranchTip, labelText),
-				"info",
-			);
+			ctx.ui.notify(buildSummaryMessage(plan, tipId, labelText), "info");
 		},
 	});
 }

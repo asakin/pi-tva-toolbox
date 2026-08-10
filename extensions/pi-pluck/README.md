@@ -19,24 +19,55 @@ the first user message of the new branch. Continue from the tip under that label
 - Catch-all patterns (every turn matches) are rejected.
 - Resume stays on the trunk (a plain `custom` bookkeeping entry anchors the leaf).
 
+## Mental model
+
+`/pluck` does not rewrite your current path. It grows a **sibling** conversation
+that looks like yours with matching turns removed, labels the first user message
+on that chain, and leaves you on the trunk.
+
+```
+End state: /pluck banana
+
++------------------------------+       +------------------------------------+
+| Trunk (you stay here)        |       | Forgetful side-branch              |
++------------------------------+       +------------------------------------+
+| u1 hello                     |       | [plucked 1/3 /banana/i 12:00]      |
+| a1 hi                        |       | u1' hello                          |
+| u2 talk about banana         |  -->  | a1' hi                             |
+| a2 about banana              |       | u3' continue                       |
+| u3 continue                  |       | a3' continuing  <-- tip            |
+| a3 continuing                |       +------------------------------------+
+| custom pi-pluck  <-- leaf    |
++------------------------------+       u2/a2 gone; no hole in chain
+```
+
+- **Trunk** — unchanged history; a `custom` `pi-pluck` entry anchors the leaf so
+  resume does not rebuild onto the forgetful tip.
+- **Forgetful branch** — full kept chain cloned in parallel (no holes where turns
+  were omitted); label on the first user message; continue from the tip under it.
+- **Jump** — `/tree` → select the `[plucked …]` label → continue from the tip.
+
 ## Install
 
 ```bash
-pi install /Users/arielsakin/projects/OSS/pi-extensions/pi-pluck
+pi install git:github.com/asakin/pi-pluck
 pi list
 ```
 
-When published:
+Dev install from a local checkout:
 
 ```bash
-pi install git:github.com/asakin/pi-pluck
+pi install /path/to/pi-pluck
+pi list
 ```
 
 Do **not** symlink into `~/.pi/agent/extensions/`. `/reload` after install.
 
+To refresh a local install after edits:
+
 ```bash
-pi remove /Users/arielsakin/projects/OSS/pi-extensions/pi-pluck
-pi install /Users/arielsakin/projects/OSS/pi-extensions/pi-pluck
+pi remove /path/to/pi-pluck
+pi install /path/to/pi-pluck
 ```
 
 ## Development

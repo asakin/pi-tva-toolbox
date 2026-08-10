@@ -19,8 +19,7 @@ export default function (pi: ExtensionAPI) {
 	pi.registerCommand("pluck", {
 		description:
 			"Create a labeled forgetful side-branch omitting turns that match a regex "
-			+ "(stays on current leaf; jump via /tree to the plucked tip; "
-			+ "resume of this file may open on that branch)",
+			+ "(stays on current trunk; jump via /tree to the [plucked …] label on the branch root)",
 
 		// TUI talk and every ending return live here. Steps only compute / mutate.
 		handler: async (args: string, ctx: ExtensionCommandContext) => {
@@ -78,18 +77,29 @@ export default function (pi: ExtensionAPI) {
 				return;
 			}
 
-			// Build the labeled forgetful side-branch; leave the user on their current leaf.
-			let tipId: string;
+			// Build the labeled forgetful side-branch; leave the user on the trunk.
+			let labeledRootId: string;
 			let labelText: string;
+			let clonedCount: number;
+			let tipId: string;
 			try {
-				({ tipId, labelText } = growForgetfulBranch(ctx, plan));
+				({ labeledRootId, labelText, clonedCount, tipId } =
+					growForgetfulBranch(ctx, plan));
 			} catch (error) {
 				ctx.ui.notify(`pluck failed: ${errorMessage(error)}`, "error");
 				return;
 			}
 
-			// User is still on the original leaf; they jump via /tree when they want.
-			ctx.ui.notify(buildSummaryMessage(plan, tipId, labelText), "info");
+			ctx.ui.notify(
+				buildSummaryMessage(
+					plan,
+					labeledRootId,
+					labelText,
+					clonedCount,
+					tipId,
+				),
+				"info",
+			);
 		},
 	});
 }

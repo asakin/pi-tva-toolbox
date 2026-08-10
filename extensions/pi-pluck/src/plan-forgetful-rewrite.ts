@@ -162,8 +162,10 @@ export function planForgetfulRewrite(
 	}
 
 	const divergenceParentId = path[sharedLen - 1]!.id;
-	const toCloneCount = keptFlat.length - sharedLen;
-	const labelOnly = toCloneCount === 0;
+	// Grow clones the entire kept chain (not only the post-hang suffix), so a
+	// plan with kept entries is never "label-only" just because the hang is at
+	// the tip (e.g. the only match was the current leaf turn).
+	const labelOnly = keptFlat.length === 0;
 
 	// "Keeps N" in confirm copy means turns after the protected head, not including it.
 	let keptTurnCount = keptTurns.length;

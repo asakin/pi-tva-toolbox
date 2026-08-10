@@ -51,7 +51,7 @@ export function buildConfirmMessage(
 
 	lines.push("");
 	lines.push(
-		"You stay on your current leaf. Use /tree later if you want the forgetful tip.",
+		"You stay on your current trunk. Use /tree later — find the [plucked …] label on the forgetful branch root.",
 	);
 	lines.push("Create this side-branch?");
 

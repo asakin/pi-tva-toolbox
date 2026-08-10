@@ -6,16 +6,32 @@ import type {
 import type { PluckPlan } from "./plan-forgetful-rewrite.ts";
 
 export type GrowForgetfulBranchResult = {
+	/** Id of the labeled entry — first user message on the forgetful branch. */
+	labeledRootId: string;
+	/** Last cloned entry — the tip you continue from. */
 	tipId: string;
+	/** How many entries were cloned (should match plan.keptTurns.flat().length). */
+	clonedCount: number;
 	labelText: string;
 };
 
 /**
- * Grow a labeled forgetful side-branch from the plan's hang-point.
+ * Grow a labeled forgetful side-branch from the plan.
  *
- * - Point the leaf at the shared ancestor, append remapped kept-suffix clones,
- *   hang a fresh hidden tip, and label that tip (never a trunk node).
- * - Always restore the caller's leaf before returning.
+ * Clone *every* kept entry as a parallel chain (not only the post-hang suffix).
+ * Shared trunk history is duplicated onto the forgetful side so /tree shows a
+ * full M−N-turn branch under the [plucked …] label — a tip you can continue from.
+ *
+ * Chain rule: entry i+1 always parents to the clone of kept[i], so omitted
+ * turns leave no holes. The first clone keeps the original first-kept parent
+ * (often null → a second root), i.e. a sibling of the original session head.
+ *
+ * Label the first *user message* on that chain (not a leading model_change /
+ * bash / etc. — those are real nodes but useless /tree signposts).
+ *
+ * After clones: return to the caller's trunk and append a plain `custom`
+ * bookkeeping entry so resume does not rebuild onto the forgetful tip
+ * (fork-off pattern).
  */
 export function growForgetfulBranch(
 	ctx: ExtensionCommandContext,
@@ -30,38 +46,61 @@ export function growForgetfulBranch(
 	}
 
 	const labelText = buildLabelText(plan);
-	const { toClone, onPathIds } = entriesToClone(plan);
+	const toClone = plan.keptTurns.flat();
+	if (toClone.length === 0) {
+		throw new Error("pluck: plan has no kept entries to clone");
+	}
+
 	const usedIds = new Set(sm.getEntries().map((entry) => entry.id));
 	const idMap = new Map<string, string>();
 	for (const entry of toClone) {
 		idMap.set(entry.id, nextId(usedIds));
 	}
-	const clones = toClone.map((entry) =>
-		remapClonedEntry(entry, idMap, plan.divergenceParentId, onPathIds),
+
+	const clones = toClone.map((entry, index) =>
+		remapClonedEntry(entry, index, toClone, idMap),
 	);
 
-	sm.branch(plan.divergenceParentId);
 	for (const entry of clones) {
 		sm._appendEntry(entry);
 	}
 
-	// Fresh tip under the forgetful leaf (last clone, or divergence when label-only).
-	const tipId = sm.appendCustomMessageEntry("pi-pluck", labelText, false);
-	if (tipId === originalLeafId || tipId === plan.divergenceParentId) {
+	const labeledRootId = findLabelTargetId(clones);
+	const tipId = clones[clones.length - 1]!.id;
+
+	if (
+		labeledRootId === originalLeafId ||
+		labeledRootId === plan.divergenceParentId
+	) {
 		throw new Error(
-			`pluck: tip collided with trunk id ${tipId}; refusing to grow on shared history`,
+			`pluck: labeled root collided with trunk id ${labeledRootId}`,
 		);
 	}
-	sm.appendLabelChange(tipId, labelText);
 
+	sm.appendLabelChange(labeledRootId, labelText);
+
+	// Trunk bookkeeping so the last persisted line is on the caller's path.
 	sm.branch(originalLeafId);
-	if (sm.getLeafId() !== originalLeafId) {
+	const bookkeepingId = sm.appendCustomEntry("pi-pluck", {
+		kind: "trunk-anchor",
+		labeledRootId,
+		tipId,
+		clonedCount: clones.length,
+		labelText,
+		divergenceParentId: plan.divergenceParentId,
+	});
+	if (sm.getLeafId() !== bookkeepingId) {
 		throw new Error(
-			`pluck: failed to restore leaf to ${originalLeafId} (now ${sm.getLeafId()})`,
+			`pluck: failed to land on trunk bookkeeping (leaf ${sm.getLeafId()})`,
 		);
 	}
 
-	return { tipId, labelText };
+	return {
+		labeledRootId,
+		tipId,
+		clonedCount: clones.length,
+		labelText,
+	};
 }
 
 /** Label text for /tree: plucked X/Y, regex, clock time. */
@@ -72,51 +111,50 @@ export function buildLabelText(
 	return `plucked ${plan.skippedCount}/${plan.originalTurnCount} /${plan.regexStr}/i ${labelTime}`;
 }
 
-/** Entries in keptTurns that sit after the hang-point — these get cloned. */
-function entriesToClone(
-	plan: Extract<PluckPlan, { ok: true }>,
-): { toClone: SessionEntry[]; onPathIds: Set<string> } {
-	const keptFlat = plan.keptTurns.flat();
-	const hangIdx = keptFlat.findIndex(
-		(entry) => entry.id === plan.divergenceParentId,
-	);
-	if (hangIdx < 0) {
-		throw new Error(
-			`pluck: hang-point ${plan.divergenceParentId} missing from kept path`,
-		);
+/** Prefer the first user message on the clone chain; fall back to the first clone. */
+function findLabelTargetId(clones: SessionEntry[]): string {
+	for (const entry of clones) {
+		if (entry.type === "message" && entry.message.role === "user") {
+			return entry.id;
+		}
 	}
-	return {
-		toClone: keptFlat.slice(hangIdx + 1),
-		onPathIds: new Set(keptFlat.slice(0, hangIdx + 1).map((e) => e.id)),
-	};
+	return clones[0]!.id;
 }
 
 /**
- * Deep-clone one entry onto the forgetful branch with remapped ids.
- * Parents/refs that pointed at plucked entries fall back to the hang-point.
+ * Deep-clone one kept entry onto the forgetful branch with remapped ids.
+ * Parents always follow the kept chain so plucked gaps disappear.
  */
 function remapClonedEntry(
 	entry: SessionEntry,
+	index: number,
+	toClone: SessionEntry[],
 	idMap: Map<string, string>,
-	divergenceParentId: string,
-	onPathIds: Set<string>,
 ): SessionEntry {
 	const clone = JSON.parse(JSON.stringify(entry)) as SessionEntry;
 	const newId = idMap.get(entry.id);
 	if (!newId) throw new Error(`pluck: missing id map for ${entry.id}`);
 	clone.id = newId;
-	if (entry.parentId && idMap.has(entry.parentId)) {
-		clone.parentId = idMap.get(entry.parentId)!;
+
+	if (index === 0) {
+		// Sibling of the original first kept entry (often a second root).
+		clone.parentId = entry.parentId;
 	} else {
-		clone.parentId = divergenceParentId;
+		const prevId = toClone[index - 1]!.id;
+		const mappedPrev = idMap.get(prevId);
+		if (!mappedPrev) {
+			throw new Error(`pluck: missing id map for previous kept ${prevId}`);
+		}
+		clone.parentId = mappedPrev;
 	}
 
 	const resolveRef = (id: string): string => {
 		const mapped = idMap.get(id);
 		if (mapped) return mapped;
-		if (onPathIds.has(id)) return id;
-		// Pointed at a plucked entry — hang from the shared cut instead.
-		return divergenceParentId;
+		// Pointed at a plucked or unknown entry — pin to previous kept clone,
+		// or the labeled-root clone when this is the first.
+		if (index === 0) return newId;
+		return idMap.get(toClone[index - 1]!.id) ?? newId;
 	};
 
 	if (clone.type === "compaction" && clone.firstKeptEntryId) {
@@ -144,11 +182,7 @@ type PluckSessionMutators = {
 	getEntries(): SessionEntry[];
 	branch(branchFromId: string): void;
 	_appendEntry(entry: SessionEntry): void;
-	appendCustomMessageEntry(
-		customType: string,
-		content: string,
-		display: boolean,
-	): string;
+	appendCustomEntry(customType: string, data?: unknown): string;
 	appendLabelChange(targetId: string, label: string | undefined): string;
 };
 
@@ -161,7 +195,7 @@ function assertMutators(
 		"getEntries",
 		"branch",
 		"_appendEntry",
-		"appendCustomMessageEntry",
+		"appendCustomEntry",
 		"appendLabelChange",
 	];
 	for (const key of required) {

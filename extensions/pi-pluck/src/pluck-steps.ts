@@ -10,7 +10,7 @@ import {
 // Re-export so the handler and tests can import the public steps from one place.
 export type { PluckPlan };
 export { planForgetfulRewrite };
-/** Labeled side-branch growth (clones + tip + label); stays on the caller's leaf. */
+/** Labeled side-branch growth (clones + label on first node); stays on the trunk. */
 export { growForgetfulBranch, buildLabelText } from "./grow-forgetful-branch.ts";
 /** Confirm-dialog body — plain copy for a yes/no decision. */
 export { buildConfirmMessage } from "./build-confirm-message.ts";
@@ -61,16 +61,23 @@ export function splitPathIntoTurns(ctx: ExtensionCommandContext): Turn[] {
 
 /**
  * Build the success summary string. The handler notifies with it.
- * Remind the user they are still on the original leaf (/tree to jump).
+ * Remind the user they are still on the trunk (/tree to jump to the labeled root).
  */
 export function buildSummaryMessage(
 	plan: Extract<PluckPlan, { ok: true }>,
-	tipId: string,
+	labeledRootId: string,
 	labelText: string,
+	clonedCount?: number,
+	tipId?: string,
 ): string {
+	const clonePart =
+		clonedCount === undefined
+			? ""
+			: ` Cloned ${clonedCount} entries (tip ${tipId ?? "?"}).`;
 	return (
-		`Created forgetful tip "${labelText}" (${tipId}). ` +
-		`Forgot ${plan.skippedCount} of ${plan.originalTurnCount} turn(s). ` +
-		`Still on your current branch — open /tree and select that label to continue forgetfully.`
+		`Created forgetful branch labeled "${labelText}" (root ${labeledRootId}).` +
+		clonePart +
+		` Forgot ${plan.skippedCount} of ${plan.originalTurnCount} turn(s).` +
+		` Still on your current trunk — open /tree and select that label; continue from the tip under it.`
 	);
 }

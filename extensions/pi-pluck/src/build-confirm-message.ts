@@ -11,7 +11,7 @@ export function buildConfirmMessage(
 ): string {
 	const lines: string[] = [];
 
-	lines.push(`Pattern: /${plan.regexStr}/`);
+	lines.push(`Pattern: /${plan.regexStr}/i`);
 	lines.push(
 		`Will forget ${plan.skippedCount} of ${plan.originalTurnCount} turn(s) on this path.`,
 	);

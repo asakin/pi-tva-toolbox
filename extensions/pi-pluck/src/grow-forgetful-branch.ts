@@ -69,7 +69,7 @@ export function buildLabelText(
 	plan: Extract<PluckPlan, { ok: true }>,
 	labelTime = new Date().toTimeString().slice(0, 5),
 ): string {
-	return `plucked ${plan.skippedCount}/${plan.originalTurnCount} /${plan.regexStr}/ ${labelTime}`;
+	return `plucked ${plan.skippedCount}/${plan.originalTurnCount} /${plan.regexStr}/i ${labelTime}`;
 }
 
 /** Entries in keptTurns that sit after the hang-point — these get cloned. */

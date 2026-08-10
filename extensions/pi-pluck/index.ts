@@ -31,7 +31,7 @@ export default function (pi: ExtensionAPI) {
 				regex = validateRegex(regexStr);
 			} catch (error) {
 				ctx.ui.notify(
-					`pluck: invalid regex /${regexStr}/: ${errorMessage(error)}`,
+					`pluck: invalid regex /${regexStr}/i: ${errorMessage(error)}`,
 					"error",
 				);
 				return;
@@ -51,8 +51,13 @@ export default function (pi: ExtensionAPI) {
 			if (!plan.ok) {
 				if (plan.reason === "no_match") {
 					ctx.ui.notify(
-						`No turns matched regex /${regexStr}/. Nothing to pluck.`,
+						`No turns matched regex /${regexStr}/i. Nothing to pluck.`,
 						"info",
+					);
+				} else if (plan.reason === "catches_all") {
+					ctx.ui.notify(
+						`pluck: /${regexStr}/i matches every turn on this path — refine the pattern so something remains.`,
+						"error",
 					);
 				} else {
 					ctx.ui.notify(

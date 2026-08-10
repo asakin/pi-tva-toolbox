@@ -184,6 +184,16 @@ describe("planForgetfulRewrite", () => {
 			regexStr: "banana",
 		});
 	});
+
+	test("rejects patterns that match every turn (accidental catch-all)", () => {
+		const turns = turnsFromBranch(sampleBranch());
+		const plan = planForgetfulRewrite(turns, /.+/, ".+");
+		expect(plan).toEqual({
+			ok: false,
+			reason: "catches_all",
+			regexStr: ".+",
+		});
+	});
 });
 
 describe("buildConfirmMessage", () => {
@@ -271,7 +281,7 @@ describe("growForgetfulBranch", () => {
 		expect(tipId).not.toBe(originalLeaf);
 		expect(tipId).not.toBe(plan.divergenceParentId);
 		expect(labelText).toMatch(/plucked 1\/3/);
-		expect(labelText).toMatch(/\/banana\//);
+		expect(labelText).toMatch(/\/banana\/i/);
 		expect(sm.getLabel(tipId)).toBe(labelText);
 		expect(sm.getLabel(originalLeaf!)).toBeUndefined();
 	});
@@ -281,7 +291,7 @@ describe("buildLabelText", () => {
 	test("formats plucked X/Y and the regex", () => {
 		const plan = okPlan({ skippedCount: 1, originalTurnCount: 3 });
 		const labelText = buildLabelText(plan, "12:00");
-		expect(labelText).toBe("plucked 1/3 /banana/ 12:00");
+		expect(labelText).toBe("plucked 1/3 /banana/i 12:00");
 	});
 });
 

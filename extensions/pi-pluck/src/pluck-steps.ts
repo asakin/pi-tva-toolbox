@@ -12,6 +12,8 @@ export type { PluckPlan };
 export { planForgetfulRewrite };
 /** Labeled side-branch growth (clones + tip + label); stays on the caller's leaf. */
 export { growForgetfulBranch, buildLabelText } from "./grow-forgetful-branch.ts";
+/** Confirm-dialog body — plain copy for a yes/no decision. */
+export { buildConfirmMessage } from "./build-confirm-message.ts";
 
 /** One conversation turn: a user message plus everything until the next user message. */
 export type Turn = SessionEntry[];
@@ -58,23 +60,17 @@ export function splitPathIntoTurns(ctx: ExtensionCommandContext): Turn[] {
 }
 
 /**
- * Build the confirm-dialog body from the plan (counts, and a warning if the
- * first prompt matched but must stay). The handler calls ctx.ui.confirm with this.
- */
-export function buildConfirmMessage(
-	_plan: Extract<PluckPlan, { ok: true }>,
-): string {
-	throw new Error("not implemented: buildConfirmMessage");
-}
-
-/**
  * Build the success summary string. The handler notifies with it.
  * Remind the user they are still on the original leaf (/tree to jump).
  */
 export function buildSummaryMessage(
-	_plan: Extract<PluckPlan, { ok: true }>,
-	_tipId: string,
-	_labelText: string,
+	plan: Extract<PluckPlan, { ok: true }>,
+	tipId: string,
+	labelText: string,
 ): string {
-	throw new Error("not implemented: buildSummaryMessage");
+	return (
+		`Created forgetful tip "${labelText}" (${tipId}). ` +
+		`Forgot ${plan.skippedCount} of ${plan.originalTurnCount} turn(s). ` +
+		`Still on your current branch — open /tree and select that label to continue forgetfully.`
+	);
 }

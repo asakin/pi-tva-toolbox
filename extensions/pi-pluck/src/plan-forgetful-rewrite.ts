@@ -4,7 +4,7 @@ import type { Turn } from "./pluck-steps.ts";
 export type PluckPlan =
 	| {
 			ok: false;
-			reason: "no_match" | "not_useful";
+			reason: "no_match" | "not_useful" | "catches_all";
 			regexStr: string;
 	  }
 	| {
@@ -136,6 +136,12 @@ export function planForgetfulRewrite(
 
 	if (skippedCount === 0) {
 		return { ok: false, reason: "no_match", regexStr };
+	}
+
+	// .* / blanket patterns: every turn matched. Even with root-protect, that is a
+	// wipe of the conversation path — refuse instead of building a label-only stub.
+	if (skippedCount === turns.length) {
+		return { ok: false, reason: "catches_all", regexStr };
 	}
 
 	// Shared prefix with the original path = trunk we don't clone. Side-branch hangs

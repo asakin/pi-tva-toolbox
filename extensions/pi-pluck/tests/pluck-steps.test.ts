@@ -199,6 +199,28 @@ describe("planForgetfulRewrite", () => {
 		});
 	});
 
+	test("rejects when only preamble survives (no kept user turns)", () => {
+		const model = {
+			type: "model_change",
+			id: "m1",
+			parentId: null,
+			timestamp: "2026-01-01T00:00:00.000Z",
+			provider: "test",
+			modelId: "test-model",
+		} as SessionEntry;
+		const u1 = msg("u1", "m1", "user", "hello banana");
+		const a1 = msg("a1", "u1", "assistant", [
+			{ type: "text", text: "about banana" },
+		]);
+		const turns = turnsFromBranch([model, u1, a1]);
+		const plan = planForgetfulRewrite(turns, /banana/i, "banana");
+		expect(plan).toEqual({
+			ok: false,
+			reason: "catches_all",
+			regexStr: "banana",
+		});
+	});
+
 	test("omits a matching tip turn and keeps the earlier turns", () => {
 		const u1 = msg("u1", null, "user", "keep");
 		const a1 = msg("a1", "u1", "assistant", [{ type: "text", text: "ok" }]);

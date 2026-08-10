@@ -194,6 +194,18 @@ export function planForgetfulRewrite(
 		return { ok: false, reason: "catches_all", regexStr };
 	}
 
+	// Preamble-only survivors (model_change, etc.) are not a useful forgetful branch:
+	// /tree would label a non-user node. Treat as catch-all.
+	const keptHasUserTurn = keptTurns.some((turn) =>
+		turn.some(
+			(entry) =>
+				entry.type === "message" && entry.message.role === "user",
+		),
+	);
+	if (!keptHasUserTurn) {
+		return { ok: false, reason: "catches_all", regexStr };
+	}
+
 	// Shared prefix with the original path = trunk we don't clone. Side-branch hangs
 	// from the last shared entry (not from session root).
 	const keptFlat = keptTurns.flat();

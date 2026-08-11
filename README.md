@@ -5,8 +5,8 @@ extensions for session trees, forks, and the versions they carry.
 
 Pi sessions are append-only DAGs of JSON entries — a transcript and every branch of it.
 These tools administer that graph: moving timelines between directories, rewinding a
-session to its seed, pruning dead branches, and checking the dependency versions written
-along the way.
+session to its seed, growing side-branches that forget selected turns, pruning dead
+branches, and checking the dependency versions written along the way.
 
 ## Extensions
 
@@ -14,6 +14,7 @@ along the way.
 | --- | --- | --- |
 | [pi-time-heist](extensions/pi-time-heist) | fork, then `/heist` | Fork a session from any point in its tree into a *different* working directory |
 | [pi-fork-off](extensions/pi-fork-off) | `/fork-off` | Fork one point into several labeled branches, to explore in parallel |
+| [pi-pluck](extensions/pi-pluck) | `/pluck` | Grow a labeled side-branch that forgets every turn matching a regex, leaving the trunk intact |
 | [pi-pruner](extensions/pi-pruner) | `/prune` | Prune branches labeled `TVA-PRUNE` (and their descendants) from the session tree |
 | [pi-clear](extensions/pi-clear) | `/clear` | Rewind the session to its first user message as a new branch |
 | [pi-version-sentinel](extensions/pi-version-sentinel) | automatic | Catch a stale dependency version before it's written — a memory-refresh for autonomous agents |

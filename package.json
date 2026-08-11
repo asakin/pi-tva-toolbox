@@ -18,6 +18,7 @@
     "extensions": [
       "./extensions/pi-clear/src/clear.ts",
       "./extensions/pi-fork-off/src/fork-off.ts",
+      "./extensions/pi-pluck/src/index.ts",
       "./extensions/pi-pruner/src/index.ts",
       "./extensions/pi-time-heist/src/heist.ts",
       "./extensions/pi-version-sentinel/src/index.ts"

@@ -1,22 +1,49 @@
 {
-  "name": "pi-pluck",
+  "name": "@arielsakin/pi-pluck",
   "version": "0.1.0",
+  "description": "Create a labeled forgetful side-branch by omitting the turns that match a regex",
   "type": "module",
-  "description": "Pi extension: /pluck — create a labeled forgetful side-branch by omitting turns that match a regex.",
-  "keywords": ["pi-package", "pi-extension", "pi-coding-agent"],
-  "license": "MIT",
+  "license": "Apache-2.0",
   "author": "Ariel Sakin",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/asakin/pi-pluck"
+  "private": false,
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "pi",
+    "session",
+    "branch",
+    "context"
+  ],
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ]
+  },
+  "scripts": {
+    "check": "tsc --noEmit",
+    "test": "node --test"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*"
   },
-  "pi": {
-    "extensions": ["./index.ts"]
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "0.81.1",
+    "@types/node": "26.1.1",
+    "typescript": "7.0.2"
   },
-  "scripts": {
-    "test": "bun test tests/pluck-steps.test.ts"
-  }
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/asakin/pi-tva-toolbox.git",
+    "directory": "extensions/pi-pluck"
+  },
+  "bugs": {
+    "url": "https://github.com/asakin/pi-tva-toolbox/issues"
+  },
+  "homepage": "https://github.com/asakin/pi-tva-toolbox#readme"
 }

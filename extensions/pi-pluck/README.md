@@ -52,36 +52,43 @@ End state: /pluck banana
 
 ## Install
 
-```bash
-pi install git:github.com/asakin/pi-pluck
-pi list
-```
-
-Dev install from a local checkout:
+`/pluck` ships as part of the toolbox:
 
 ```bash
-pi install /path/to/pi-pluck
-pi list
+pi install git:github.com/asakin/pi-tva-toolbox
 ```
 
-Do **not** symlink into `~/.pi/agent/extensions/`. `/reload` after install.
+To load only this extension, use the object form in your settings:
 
-To refresh a local install after edits:
-
-```bash
-pi remove /path/to/pi-pluck
-pi install /path/to/pi-pluck
+```json
+{
+  "packages": [
+    {
+      "source": "git:github.com/asakin/pi-tva-toolbox",
+      "extensions": ["extensions/pi-pluck/src/index.ts"]
+    }
+  ]
+}
 ```
+
+Do **not** symlink into `~/.pi/agent/extensions/`. `/reload` after install. See the
+[root README](../..) for path-installing a local checkout.
 
 ## Development
 
 ```bash
-bun test
+npm test        # node --test, from this workspace or the repo root
+npm run check   # tsc --noEmit
 ```
 
 Integration tests import `SessionManager.inMemory` from the
 `@earendil-works/pi-coding-agent` peer dependency (resolved via your `pi`
 install).
+
+Session writes from a command context need a deliberate widen of
+`ReadonlySessionManager` to the live `SessionManager` — see
+`src/grow-forgetful-branch.ts`. Read Pi's session-format / tree docs, and
+`pi-fork-off` next door, before changing grow/label/leaf behavior.
 
 ## Sharp edges
 
@@ -94,6 +101,8 @@ install).
 - **Not in scope (yet).** Regex ReDoS timeouts, auto-jump to the forgetful tip,
   and rewriting grow to use only public `append*` helpers.
 
+Part of the [pi-tva-toolbox](../..) — timeline tools for Pi.
+
 ## License
 
-MIT
+Apache 2.0

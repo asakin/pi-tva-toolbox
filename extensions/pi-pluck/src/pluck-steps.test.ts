@@ -1,4 +1,5 @@
-import { describe, expect, test } from "bun:test";
+import { describe, test } from "node:test";
+import assert from "node:assert/strict";
 import type {
 	ExtensionCommandContext,
 	SessionEntry,
@@ -14,7 +15,7 @@ import {
 	type PluckPlan,
 	type Turn,
 	validateRegex,
-} from "../src/pluck-steps.ts";
+} from "./pluck-steps.ts";
 
 type MsgRole = "user" | "assistant" | "toolResult";
 type LiveSession = ReturnType<typeof SessionManager.inMemory>;
@@ -31,7 +32,13 @@ function msg(
 		parentId,
 		timestamp: "2026-01-01T00:00:00.000Z",
 		message: { role, content, timestamp: "2026-01-01T00:00:00.000Z" },
-	} as SessionEntry;
+	} as unknown as SessionEntry;
+}
+
+/** Role of a message entry, or undefined when the entry is not a message. */
+function roleOf(sm: LiveSession, id: string): string | undefined {
+	const entry = sm.getEntry(id) as SessionEntry | undefined;
+	return entry?.type === "message" ? entry.message.role : undefined;
 }
 
 /** u1→a1, u2(match)→a2, u3→a3 — three turns; middle matches /banana/. */
@@ -138,7 +145,7 @@ function appendUser(sm: LiveSession, content: string): void {
 	sm.appendMessage({
 		role: "user",
 		content,
-		timestamp: new Date().toISOString(),
+		timestamp: Date.now(),
 	});
 }
 
@@ -194,18 +201,18 @@ function countForgetfulUserTurns(
 
 describe("validateRegex", () => {
 	test("rejects empty input", () => {
-		expect(() => validateRegex("")).toThrow(/usage|empty|required/i);
+		assert.throws(() => validateRegex(""), /usage|empty|required/i);
 	});
 
 	test("rejects invalid regex syntax", () => {
-		expect(() => validateRegex("(")).toThrow(/invalid regex/i);
+		assert.throws(() => validateRegex("("), /invalid regex/i);
 	});
 
 	test("returns a case-insensitive RegExp for a valid pattern", () => {
 		const re = validateRegex("Banana");
-		expect(re).toBeInstanceOf(RegExp);
-		expect(re.flags).toContain("i");
-		expect(re.test("banana")).toBe(true);
+		assert.ok(re instanceof RegExp);
+		assert.ok(re.flags.includes("i"));
+		assert.strictEqual(re.test("banana"), true);
 	});
 });
 
@@ -213,15 +220,15 @@ describe("splitPathIntoTurns", () => {
 	test("splits the current branch into user-led turns", () => {
 		const ctx = mockCtx({ branch: sampleBranch() });
 		const turns = splitPathIntoTurns(ctx);
-		expect(turns).toHaveLength(3);
-		expect(turns[0]!.map((e) => e.id)).toEqual(["u1", "a1"]);
-		expect(turns[1]!.map((e) => e.id)).toEqual(["u2", "a2"]);
-		expect(turns[2]!.map((e) => e.id)).toEqual(["u3", "a3"]);
+		assert.strictEqual(turns.length, 3);
+		assert.deepStrictEqual(turns[0]!.map((e) => e.id), ["u1", "a1"]);
+		assert.deepStrictEqual(turns[1]!.map((e) => e.id), ["u2", "a2"]);
+		assert.deepStrictEqual(turns[2]!.map((e) => e.id), ["u3", "a3"]);
 	});
 
 	test("errors when the session has no entries", () => {
 		const ctx = mockCtx({ branch: [], leafId: null });
-		expect(() => splitPathIntoTurns(ctx)).toThrow(/no entries/i);
+		assert.throws(() => splitPathIntoTurns(ctx), /no entries/i);
 	});
 });
 
@@ -229,7 +236,7 @@ describe("planForgetfulRewrite", () => {
 	test("returns no_match when nothing matches", () => {
 		const turns = turnsFromBranch(sampleBranch());
 		const plan = planForgetfulRewrite(turns, /zzz/, "zzz");
-		expect(plan).toEqual({
+		assert.deepStrictEqual(plan, {
 			ok: false,
 			reason: "no_match",
 			regexStr: "zzz",
@@ -239,27 +246,27 @@ describe("planForgetfulRewrite", () => {
 	test("omits matching turns and hangs after the last shared kept ancestor", () => {
 		const turns = turnsFromBranch(sampleBranch());
 		const plan = planForgetfulRewrite(turns, /banana/i, "banana");
-		expect(plan.ok).toBe(true);
+		assert.strictEqual(plan.ok, true);
 		if (!plan.ok) return;
-		expect(plan.skippedCount).toBe(1);
-		expect(plan.originalTurnCount).toBe(3);
-		expect(plan.keptTurnCount).toBe(2);
-		expect(plan.rootProtected).toBe(false);
-		expect(plan.divergenceParentId).toBe("a1");
-		expect(plan.keptTurns.map((t) => t[0]!.id)).toEqual(["u1", "u3"]);
-		expect(plan.forgottenPreviews).toEqual(["talk about banana"]);
+		assert.strictEqual(plan.skippedCount, 1);
+		assert.strictEqual(plan.originalTurnCount, 3);
+		assert.strictEqual(plan.keptTurnCount, 2);
+		assert.strictEqual(plan.rootProtected, false);
+		assert.strictEqual(plan.divergenceParentId, "a1");
+		assert.deepStrictEqual(plan.keptTurns.map((t) => t[0]!.id), ["u1", "u3"]);
+		assert.deepStrictEqual(plan.forgottenPreviews, ["talk about banana"]);
 	});
 
 	test("never drops the session head; flags rootProtected when first turn matches", () => {
 		const turns = turnsFromBranch(sampleBranch());
 		const plan = planForgetfulRewrite(turns, /hello/i, "hello");
-		expect(plan.ok).toBe(true);
+		assert.strictEqual(plan.ok, true);
 		if (!plan.ok) return;
-		expect(plan.rootProtected).toBe(true);
-		expect(plan.keptTurns[0]!.some((e) => e.id === "u1")).toBe(true);
-		expect(plan.keptTurns[0]!.some((e) => e.id === "a1")).toBe(false);
+		assert.strictEqual(plan.rootProtected, true);
+		assert.strictEqual(plan.keptTurns[0]!.some((e) => e.id === "u1"), true);
+		assert.strictEqual(plan.keptTurns[0]!.some((e) => e.id === "a1"), false);
 		// Preview the forgotten assistant side — not the kept session-head prompt.
-		expect(plan.forgottenPreviews).toEqual(["hi"]);
+		assert.deepStrictEqual(plan.forgottenPreviews, ["hi"]);
 	});
 
 	test("does not match tool results", () => {
@@ -271,7 +278,7 @@ describe("planForgetfulRewrite", () => {
 		const tr = msg("tr1", "a1", "toolResult", "secret-banana-payload");
 		const turns: Turn[] = [[u, a, tr]];
 		const plan = planForgetfulRewrite(turns, /banana/i, "banana");
-		expect(plan).toEqual({
+		assert.deepStrictEqual(plan, {
 			ok: false,
 			reason: "no_match",
 			regexStr: "banana",
@@ -281,7 +288,7 @@ describe("planForgetfulRewrite", () => {
 	test("rejects patterns that match every turn (accidental catch-all)", () => {
 		const turns = turnsFromBranch(sampleBranch());
 		const plan = planForgetfulRewrite(turns, /.+/, ".+");
-		expect(plan).toEqual({
+		assert.deepStrictEqual(plan, {
 			ok: false,
 			reason: "catches_all",
 			regexStr: ".+",
@@ -305,7 +312,7 @@ describe("planForgetfulRewrite", () => {
 		// model_change has no matchable text, so skippedCount < turns.length —
 		// but every user-led turn matched, so refuse as catch-all.
 		const plan = planForgetfulRewrite(turns, /banana/i, "banana");
-		expect(plan).toEqual({
+		assert.deepStrictEqual(plan, {
 			ok: false,
 			reason: "catches_all",
 			regexStr: "banana",
@@ -321,24 +328,24 @@ describe("planForgetfulRewrite", () => {
 		]);
 		const turns = turnsFromBranch([u1, a1, u2, a2]);
 		const plan = planForgetfulRewrite(turns, /banana/i, "banana");
-		expect(plan.ok).toBe(true);
+		assert.strictEqual(plan.ok, true);
 		if (!plan.ok) return;
-		expect(plan.skippedCount).toBe(1);
-		expect(plan.keptTurns.map((t) => t[0]!.id)).toEqual(["u1"]);
+		assert.strictEqual(plan.skippedCount, 1);
+		assert.deepStrictEqual(plan.keptTurns.map((t) => t[0]!.id), ["u1"]);
 		// Grow still clones the kept chain even when the hang sits at the tip.
-		expect(plan.keptTurns.flat().length).toBeGreaterThan(0);
+		assert.ok(plan.keptTurns.flat().length > 0);
 	});
 });
 
 describe("buildConfirmMessage", () => {
 	test("includes remain/forgotten stats, regex, and turn previews", () => {
 		const message = buildConfirmMessage(okPlan());
-		expect(message).toMatch(/1/);
-		expect(message).toMatch(/banana/i);
-		expect(message).toMatch(/2|keep/i);
-		expect(message).toMatch(/Turns to forget:/i);
-		expect(message).toMatch(/talk about banana/);
-		expect(message).not.toMatch(/Create this side-branch/i);
+		assert.match(message, /1/);
+		assert.match(message, /banana/i);
+		assert.match(message, /2|keep/i);
+		assert.match(message, /Turns to forget:/i);
+		assert.match(message, /talk about banana/);
+		assert.doesNotMatch(message, /Create this side-branch/i);
 	});
 
 	test("warns when the session head matched and was kept", () => {
@@ -350,15 +357,15 @@ describe("buildConfirmMessage", () => {
 				keptTurnCount: 2,
 			}),
 		);
-		expect(message).toMatch(/session head|first user|prompt/i);
-		expect(message).toMatch(/kept|Keeping/i);
-		expect(message).toMatch(/Turns to forget:/i);
-		expect(message).toMatch(/\bhi\b/);
+		assert.match(message, /session head|first user|prompt/i);
+		assert.match(message, /kept|Keeping/i);
+		assert.match(message, /Turns to forget:/i);
+		assert.match(message, /\bhi\b/);
 	});
 
 	test("escapes slashes in the displayed pattern", () => {
 		const message = buildConfirmMessage(okPlan({ regexStr: "foo/bar" }));
-		expect(message).toMatch(/\/foo\\\/bar\/i/);
+		assert.match(message, /\/foo\\\/bar\/i/);
 	});
 });
 
@@ -372,40 +379,41 @@ describe("growForgetfulBranch", () => {
 		]);
 
 		const originalLeaf = sm.getLeafId();
-		expect(originalLeaf).toBeTruthy();
+		assert.ok(originalLeaf);
 
 		const turns = turnsFromBranch(sm.getBranch() as SessionEntry[]);
 		const plan = planForgetfulRewrite(turns, /banana/i, "banana");
-		expect(plan.ok).toBe(true);
+		assert.strictEqual(plan.ok, true);
 		if (!plan.ok) return;
 
 		const { labeledRootId, labelText, clonedCount, tipId } =
 			growForgetfulBranch(growCtx(sm), plan);
-		expect(typeof labeledRootId).toBe("string");
-		expect(labeledRootId).not.toBe(originalLeaf);
-		expect(labelText).toMatch(/plucked 1\/3/);
-		expect(labelText).toMatch(/\/banana\/i/);
-		expect(clonedCount).toBe(plan.keptTurns.flat().length);
-		expect(tipId).toBeTruthy();
+		assert.strictEqual(typeof labeledRootId, "string");
+		assert.notStrictEqual(labeledRootId, originalLeaf);
+		assert.match(labelText, /plucked 1\/3/);
+		assert.match(labelText, /\/banana\/i/);
+		assert.strictEqual(clonedCount, plan.keptTurns.flat().length);
+		assert.ok(tipId);
 
-		expect(sm.getLabel(labeledRootId)).toBe(labelText);
-		expect(sm.getLabel(originalLeaf!)).toBeUndefined();
-		expect(sm.getEntry(labeledRootId)?.type).toBe("message");
-		expect(sm.getEntry(labeledRootId)?.message.role).toBe("user");
+		assert.strictEqual(sm.getLabel(labeledRootId), labelText);
+		assert.strictEqual(sm.getLabel(originalLeaf!), undefined);
+		assert.strictEqual(sm.getEntry(labeledRootId)?.type, "message");
+		assert.strictEqual(roleOf(sm, labeledRootId), "user");
 
-		expect(
+		assert.strictEqual(
 			sm.getEntries().some(
 				(e: SessionEntry) =>
 					e.type === "custom_message" && e.customType === "pi-pluck",
 			),
-		).toBe(false);
+			false,
+		);
 
 		const leafId = sm.getLeafId();
-		expect(leafId).toBeTruthy();
+		assert.ok(leafId);
 		const leaf = sm.getEntry(leafId!);
-		expect(leaf?.type).toBe("custom");
-		expect(leaf?.customType).toBe("pi-pluck");
-		expect(leaf?.parentId).toBe(originalLeaf);
+		assert.strictEqual(leaf?.type, "custom");
+		assert.strictEqual(leaf?.customType, "pi-pluck");
+		assert.strictEqual(leaf?.parentId, originalLeaf);
 	});
 
 	test("restores trunk leaf if grow fails after clones", () => {
@@ -417,21 +425,22 @@ describe("growForgetfulBranch", () => {
 		]);
 
 		const originalLeaf = sm.getLeafId();
-		expect(originalLeaf).toBeTruthy();
+		assert.ok(originalLeaf);
 
 		const turns = turnsFromBranch(sm.getBranch() as SessionEntry[]);
 		const plan = planForgetfulRewrite(turns, /banana/i, "banana");
-		expect(plan.ok).toBe(true);
+		assert.strictEqual(plan.ok, true);
 		if (!plan.ok) return;
 
 		sm.appendLabelChange = () => {
 			throw new Error("boom: label failed");
 		};
 
-		expect(() => growForgetfulBranch(growCtx(sm), plan)).toThrow(
+		assert.throws(
+			() => growForgetfulBranch(growCtx(sm), plan),
 			/boom: label failed/,
 		);
-		expect(sm.getLeafId()).toBe(originalLeaf);
+		assert.strictEqual(sm.getLeafId(), originalLeaf);
 	});
 
 	test("forget N of M turns → forgetful branch has M−N turns (not a length-1 stub)", () => {
@@ -448,24 +457,27 @@ describe("growForgetfulBranch", () => {
 		}
 
 		const turns = turnsFromBranch(sm.getBranch() as SessionEntry[]);
-		expect(turns.length).toBe(totalTurns);
+		assert.strictEqual(turns.length, totalTurns);
 
 		const plan = planForgetfulRewrite(turns, /banana/i, "banana");
-		expect(plan.ok).toBe(true);
+		assert.strictEqual(plan.ok, true);
 		if (!plan.ok) return;
 
-		expect(plan.skippedCount).toBe(1);
-		expect(plan.originalTurnCount).toBe(totalTurns);
+		assert.strictEqual(plan.skippedCount, 1);
+		assert.strictEqual(plan.originalTurnCount, totalTurns);
 		const expectedKept = totalTurns - plan.skippedCount;
-		expect(plan.keptTurns.length).toBe(expectedKept);
+		assert.strictEqual(plan.keptTurns.length, expectedKept);
 
 		const { labeledRootId, clonedCount } = growForgetfulBranch(
 			growCtx(sm),
 			plan,
 		);
-		expect(clonedCount).toBe(plan.keptTurns.flat().length);
-		expect(sm.getEntry(labeledRootId)?.message.role).toBe("user");
-		expect(countForgetfulUserTurns(sm, labeledRootId)).toBe(expectedKept);
+		assert.strictEqual(clonedCount, plan.keptTurns.flat().length);
+		assert.strictEqual(roleOf(sm, labeledRootId), "user");
+		assert.strictEqual(
+			countForgetfulUserTurns(sm, labeledRootId),
+			expectedKept,
+		);
 	});
 
 	test("labels the first user message, not a leading model_change", () => {
@@ -479,20 +491,22 @@ describe("growForgetfulBranch", () => {
 
 		const turns = turnsFromBranch(sm.getBranch() as SessionEntry[]);
 		const plan = planForgetfulRewrite(turns, /banana/i, "banana");
-		expect(plan.ok).toBe(true);
+		assert.strictEqual(plan.ok, true);
 		if (!plan.ok) return;
 
 		const { labeledRootId, clonedCount, tipId } = growForgetfulBranch(
 			growCtx(sm),
 			plan,
 		);
-		expect(clonedCount).toBe(plan.keptTurns.flat().length);
-		expect(clonedCount).toBeGreaterThan(2);
+		assert.strictEqual(clonedCount, plan.keptTurns.flat().length);
+		assert.ok(clonedCount > 2);
 		const labeled = sm.getEntry(labeledRootId) as SessionEntry;
-		expect(labeled.type).toBe("message");
-		expect(labeled.message.role).toBe("user");
-		expect(sm.getLabel(labeledRootId)).toMatch(/plucked/);
-		expect(sm.getEntry(tipId)?.type).not.toBe("label");
+		assert.strictEqual(labeled.type, "message");
+		assert.strictEqual(labeled.message.role, "user");
+		const label = sm.getLabel(labeledRootId);
+		assert.ok(label);
+		assert.match(label, /plucked/);
+		assert.notStrictEqual(sm.getEntry(tipId)?.type, "label");
 	});
 
 	test("when the branch tip matches the regex, forgetful branch still has the kept turns", () => {
@@ -507,31 +521,31 @@ describe("growForgetfulBranch", () => {
 		]);
 
 		const tipLeafId = sm.getLeafId();
-		expect(tipLeafId).toBeTruthy();
+		assert.ok(tipLeafId);
 
 		const turns = turnsFromBranch(sm.getBranch() as SessionEntry[]);
-		expect(turns.length).toBe(3);
+		assert.strictEqual(turns.length, 3);
 
 		const plan = planForgetfulRewrite(turns, /banana/i, "banana");
-		expect(plan.ok).toBe(true);
+		assert.strictEqual(plan.ok, true);
 		if (!plan.ok) return;
 
-		expect(plan.skippedCount).toBe(1);
-		expect(plan.keptTurns.length).toBe(2);
+		assert.strictEqual(plan.skippedCount, 1);
+		assert.strictEqual(plan.keptTurns.length, 2);
 		const keptFlat = plan.keptTurns.flat();
-		expect(keptFlat.some((e) => e.id === tipLeafId)).toBe(false);
+		assert.strictEqual(keptFlat.some((e) => e.id === tipLeafId), false);
 
 		const { labeledRootId, labelText, clonedCount, tipId } =
 			growForgetfulBranch(growCtx(sm), plan);
-		expect(sm.getLabel(labeledRootId)).toBe(labelText);
-		expect(clonedCount).toBe(keptFlat.length);
-		expect(sm.getEntry(labeledRootId)?.message.role).toBe("user");
-		expect(countForgetfulUserTurns(sm, labeledRootId)).toBe(2);
+		assert.strictEqual(sm.getLabel(labeledRootId), labelText);
+		assert.strictEqual(clonedCount, keptFlat.length);
+		assert.strictEqual(roleOf(sm, labeledRootId), "user");
+		assert.strictEqual(countForgetfulUserTurns(sm, labeledRootId), 2);
 
 		const forgetfulTip = sm.getEntry(tipId) as SessionEntry;
-		expect(forgetfulTip.type).toBe("message");
-		expect(tipId).not.toBe(tipLeafId);
-		expect(sm.getBranch(tipId).length).toBe(keptFlat.length);
+		assert.strictEqual(forgetfulTip.type, "message");
+		assert.notStrictEqual(tipId, tipLeafId);
+		assert.strictEqual(sm.getBranch(tipId).length, keptFlat.length);
 	});
 });
 
@@ -539,7 +553,7 @@ describe("buildLabelText", () => {
 	test("formats plucked X/Y and the regex", () => {
 		const plan = okPlan({ skippedCount: 1, originalTurnCount: 3 });
 		const labelText = buildLabelText(plan, "12:00");
-		expect(labelText).toBe("plucked 1/3 /banana/i 12:00");
+		assert.strictEqual(labelText, "plucked 1/3 /banana/i 12:00");
 	});
 });
 
@@ -554,10 +568,10 @@ describe("buildSummaryMessage", () => {
 			12,
 			"tip-1",
 		);
-		expect(message).toMatch(/plucked 1\/3/);
-		expect(message).toMatch(/Cloned 12/);
-		expect(message).not.toMatch(/root-1/);
-		expect(message).not.toMatch(/tip-1/);
-		expect(message).toMatch(/\/tree|trunk|still on/i);
+		assert.match(message, /plucked 1\/3/);
+		assert.match(message, /Cloned 12/);
+		assert.doesNotMatch(message, /root-1/);
+		assert.doesNotMatch(message, /tip-1/);
+		assert.match(message, /\/tree|trunk|still on/i);
 	});
 });

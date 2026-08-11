@@ -9,7 +9,7 @@ import {
 	planForgetfulRewrite,
 	splitPathIntoTurns,
 	validateRegex,
-} from "./src/pluck-steps.ts";
+} from "./pluck-steps.ts";
 
 function errorMessage(error: unknown): string {
 	return error instanceof Error ? error.message : String(error);

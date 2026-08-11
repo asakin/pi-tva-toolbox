@@ -88,14 +88,8 @@ function headUserPreview(
 					? content
 					: Array.isArray(content)
 						? content
-								.filter(
-									(b): b is { type: string; text: string } =>
-										!!b &&
-										typeof b === "object" &&
-										(b as { type?: string }).type === "text" &&
-										typeof (b as { text?: string }).text === "string",
-								)
-								.map((b) => b.text)
+								.map((b) => (b?.type === "text" ? b.text : ""))
+								.filter((blockText) => blockText.length > 0)
 								.join("\n")
 						: "";
 			const oneLine = text.replace(/\s+/g, " ").trim();

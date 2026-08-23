@@ -21,45 +21,56 @@ branches, and checking the dependency versions written along the way.
 
 ## Install
 
-From npm:
+The whole toolbox, one package:
 
 ```bash
 pi install npm:pi-tva-toolbox
 ```
 
-Or straight from git:
+Or any extension on its own — each is published separately under `@arielsakin`:
+
+```bash
+pi install npm:@arielsakin/pi-time-heist
+pi install npm:@arielsakin/pi-fork-off
+pi install npm:@arielsakin/pi-pluck
+pi install npm:@arielsakin/pi-pruner
+pi install npm:@arielsakin/pi-clear
+pi install npm:@arielsakin/pi-version-sentinel
+```
+
+Or straight from git (the toolbox):
 
 ```bash
 pi install git:github.com/asakin/pi-tva-toolbox
 ```
 
-To load only some of the listed extensions, use the object form in your settings:
+To load only some of the toolbox's extensions, use the object form in your settings:
 
 ```json
 {
   "packages": [
     {
       "source": "npm:pi-tva-toolbox",
-      "extensions": ["extensions/pi-time-heist/src/index.ts"]
+      "extensions": ["node_modules/@arielsakin/pi-time-heist/src/index.ts"]
     }
   ]
 }
 ```
 
-The toolbox is the unit: individual extensions are not published separately.
-Filter as above to load a subset.
-
 ## Development
 
-This repo is the **multi-extension package** pattern (contrast with a single-folder
-extension like `pi-ambient`): one installable root, explicit opt-in list in
-`package.json` → `pi.extensions`. Mid-development tools live under `extensions/`
-but stay unloaded until you append their entry path to that array.
+This repo publishes **N+1 packages** from one monorepo: every tool under
+`extensions/` is its own npm workspace and npm package (`@arielsakin/pi-*`), and the
+root `pi-tva-toolbox` is an umbrella that depends on all of them, bundles them
+(`bundleDependencies`), and points `pi.extensions` at
+`node_modules/@arielsakin/<tool>/src/index.ts`. Shared internals live in `lib/`
+(`@arielsakin/pi-tva-lib`, TypeScript source, a plain dependency of the tools that
+use it). Mid-development tools stay unloaded until you append their entry path to the
+root `pi.extensions` array and their package to `dependencies` + `bundleDependencies`.
 
-Each tool under `extensions/` is also its own npm workspace (own `package.json`,
-version, and per-package `pi` manifest) so it typechecks and tests in isolation.
-Code shared across tools lives in `lib/` (the `tva.log` writer), which is why the
-root, not a workspace, is the publishable unit.
+In the checkout, `npm install` symlinks every workspace into `node_modules/`, so the
+root's `node_modules/...` paths resolve to the live sources — run it before the
+path-install below.
 
 ### Live against a local checkout
 
@@ -102,16 +113,29 @@ npm test           # node --test in every workspace
 
 Extensions are plain TypeScript, loaded by pi through jiti. There is no build step.
 
-To ship a new tool: add the workspace under `extensions/`, then append its entry
-path to the root `pi.extensions` array when it is ready to load.
+To ship a new tool: add the workspace under `extensions/`, then, when it is ready to
+load, add it to the root `dependencies` + `bundleDependencies` and append its entry
+path to the root `pi.extensions` array.
+
+`npm test` also packs the umbrella for real and checks that every `pi.extensions`
+path and every bundled package is inside the tarball (`scripts/pack.test.mjs`).
 
 ### Release
 
-Bump `version` in the root `package.json`, tag it `vX.Y.Z`, and publish a GitHub
-release for that tag. `.github/workflows/publish.yml` checks the tag against the
-version, runs check + test, and publishes the root package to npm via trusted
-publishing. The first publish is manual (`npm publish` from a clean checkout), since
-the trusted publisher is configured in the package's npmjs.com settings, which exist
+All packages move in lockstep:
+
+```bash
+npm run version:set 0.2.0   # root, lib, every extension, and every internal pin
+```
+
+Commit, tag `v0.2.0`, publish a GitHub release for that tag.
+`.github/workflows/publish.yml` checks the tag against the version, runs check + test,
+then publishes the lib, each extension, and the umbrella via npm trusted publishing,
+skipping any package whose version is already on the registry.
+
+The first publish of every package is manual (`npm publish -w lib`,
+`npm publish -w extensions/<tool>`, then `npm publish` for the root), because each
+package's trusted publisher is configured in its own npmjs.com settings, which exist
 only once the package does.
 
 ## License

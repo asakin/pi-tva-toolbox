@@ -1,7 +1,7 @@
 {
-  "name": "@arielsakin/pi-pruner",
+  "name": "@arielsakin/pi-tva-lib",
   "version": "0.1.0",
-  "description": "Prune dead timeline branches from a Pi session by label",
+  "description": "Shared internals for the pi-tva-toolbox extensions. Not a pi package; bundled by the extensions that use it.",
   "type": "module",
   "license": "Apache-2.0",
   "author": "Ariel Sakin",
@@ -10,31 +10,21 @@
     "access": "public"
   },
   "keywords": [
-    "pi-package",
-    "pi-extension",
-    "pi",
-    "session",
-    "prune",
-    "tree"
+    "pi-coding-agent",
+    "pi-tva-toolbox"
   ],
   "files": [
     "src",
     "!src/**/*.test.ts",
-    "README.md",
     "LICENSE",
     "NOTICE"
   ],
-  "pi": {
-    "extensions": [
-      "./src/index.ts"
-    ]
+  "exports": {
+    ".": "./src/index.ts",
+    "./package.json": "./package.json"
   },
   "scripts": {
-    "check": "tsc --noEmit",
-    "test": "node --test"
-  },
-  "dependencies": {
-    "@arielsakin/pi-tva-lib": "0.1.0"
+    "check": "tsc --noEmit"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*"
@@ -47,7 +37,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/asakin/pi-tva-toolbox.git",
-    "directory": "extensions/pi-pruner"
+    "directory": "lib"
   },
   "bugs": {
     "url": "https://github.com/asakin/pi-tva-toolbox/issues"

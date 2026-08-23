@@ -3,7 +3,7 @@ import type { ExtensionAPI, SessionEntry } from "@earendil-works/pi-coding-agent
 import path from "node:path";
 import os from "node:os";
 import fs from "node:fs/promises";
-import { createLogger } from "../../../lib/tva-log.ts";
+import { createLogger } from "@arielsakin/pi-tva-lib";
 
 const logDebug = createLogger("HEIST");
 

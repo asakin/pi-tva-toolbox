@@ -3,7 +3,10 @@
 ## Project State
 This repository is a monorepo of Pi extensions for manipulating session files and
 related agent tooling. Each extension is its own npm workspace under `extensions/`,
-with its own `package.json`, `pi` manifest, and version.
+with its own `package.json`, `pi` manifest, and version, published on its own under
+`@arielsakin`. Shared internals live in the `lib/` workspace (`@arielsakin/pi-tva-lib`).
+The root `pi-tva-toolbox` is an umbrella package that bundles all the extensions.
+Versions move in lockstep via `npm run version:set`.
 
 ## Rules for Agents Working Here
 1. **State Over Aspiration**: Describe what is currently implemented, not what is planned.

@@ -6,6 +6,9 @@
   "license": "Apache-2.0",
   "author": "Ariel Sakin",
   "private": false,
+  "publishConfig": {
+    "access": "public"
+  },
   "keywords": [
     "pi-package",
     "pi-extension",
@@ -29,6 +32,9 @@
   "scripts": {
     "check": "tsc --noEmit",
     "test": "node --test"
+  },
+  "dependencies": {
+    "@arielsakin/pi-tva-lib": "0.1.0"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*"

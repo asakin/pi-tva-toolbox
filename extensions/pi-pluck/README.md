@@ -65,7 +65,7 @@ To load only this extension, use the object form in your settings:
   "packages": [
     {
       "source": "git:github.com/asakin/pi-tva-toolbox",
-      "extensions": ["extensions/pi-pluck/src/index.ts"]
+      "extensions": ["node_modules/@arielsakin/pi-pluck/src/index.ts"]
     }
   ]
 }

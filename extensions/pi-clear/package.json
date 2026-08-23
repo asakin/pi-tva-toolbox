@@ -6,6 +6,9 @@
   "license": "Apache-2.0",
   "author": "Ariel Sakin",
   "private": false,
+  "publishConfig": {
+    "access": "public"
+  },
   "keywords": [
     "pi-package",
     "pi-extension",

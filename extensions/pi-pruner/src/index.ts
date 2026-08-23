@@ -1,6 +1,6 @@
 import type { ExtensionAPI, SessionEntry } from "@earendil-works/pi-coding-agent";
 import { readFile, writeFile } from "node:fs/promises";
-import { createLogger } from "../../../lib/tva-log.ts";
+import { createLogger } from "@arielsakin/pi-tva-lib";
 
 const logDebug = createLogger("PRUNER");
 

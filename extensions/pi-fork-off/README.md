@@ -55,7 +55,7 @@ Each branch is two entries: a head that carries the brief, and the labeled marke
 you select. That shape is deliberate — Pi treats selecting a `custom_message` as "rewind and let
 me retype this", so it moves the leaf to the selected entry's *parent*. One labeled node per
 branch would therefore send you back to the shared base instead of into the branch. See the
-comments in `src/fork-off.ts`.
+comments in `src/index.ts`.
 
 Part of the [pi-tva-toolbox](../..) — timeline tools for Pi.
 

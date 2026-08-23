@@ -22,7 +22,7 @@
   ],
   "pi": {
     "extensions": [
-      "./src/clear.ts"
+      "./src/index.ts"
     ]
   },
   "scripts": {

@@ -27,7 +27,7 @@ for; this command deliberately stays the fast path.)
 pi install git:github.com/asakin/pi-tva-toolbox@main --extension @arielsakin/pi-clear
 ```
 
-Or from the monorepo checkout, symlink `src/clear.ts` into
+Or from the monorepo checkout, symlink `src/index.ts` into
 `~/.pi/agent/extensions/`.
 
 ## Usage

@@ -22,7 +22,7 @@
   ],
   "pi": {
     "extensions": [
-      "./src/heist.ts"
+      "./src/index.ts"
     ]
   },
   "scripts": {

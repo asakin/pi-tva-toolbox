@@ -22,7 +22,7 @@
   ],
   "pi": {
     "extensions": [
-      "./src/fork-off.ts"
+      "./src/index.ts"
     ]
   },
   "scripts": {

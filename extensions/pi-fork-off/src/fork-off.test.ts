@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { SessionManager, type SessionEntry } from "@earendil-works/pi-coding-agent";
-import { forkOff, parseSlugs } from "./fork-off.ts";
+import { forkOff, parseSlugs } from "./index.ts";
 
 /**
  * Where Pi puts the leaf when you select an entry in `/tree`.

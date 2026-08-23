@@ -34,7 +34,7 @@ To load only some of the listed extensions, use the object form in your settings
   "packages": [
     {
       "source": "git:github.com/asakin/pi-tva-toolbox",
-      "extensions": ["extensions/pi-time-heist/src/heist.ts"]
+      "extensions": ["extensions/pi-time-heist/src/index.ts"]
     }
   ]
 }

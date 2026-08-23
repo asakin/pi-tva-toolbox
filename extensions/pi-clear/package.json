@@ -1,7 +1,7 @@
 {
   "name": "@arielsakin/pi-clear",
   "version": "0.1.0",
-  "description": "Rewind a Pi session to before its first message as a new tree branch \u2014 /clear as the counter to /new",
+  "description": "Rewind a Pi session to before its first message as a new tree branch — /clear as the counter to /new",
   "type": "module",
   "license": "Apache-2.0",
   "author": "Ariel Sakin",
@@ -33,6 +33,7 @@
   },
   "devDependencies": {
     "@earendil-works/pi-coding-agent": "0.81.1",
+    "@types/node": "26.1.1",
     "typescript": "7.0.2"
   },
   "repository": {

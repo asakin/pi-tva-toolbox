@@ -1,7 +1,7 @@
 {
   "name": "@arielsakin/pi-version-sentinel",
   "version": "0.1.0",
-  "description": "Block a stale dependency version before it hits disk \u2014 checks what you write against the registry's latest stable",
+  "description": "Block a stale dependency version before it hits disk — checks what you write against the registry's latest stable",
   "type": "module",
   "license": "Apache-2.0",
   "author": "Ariel Sakin",

@@ -4,6 +4,37 @@ import { createLogger } from "../../../lib/tva-log.ts";
 
 const logDebug = createLogger("PRUNER");
 
+// Every root id plus every descendant of one. Entries may arrive in any order.
+export function collectDoomed(entries: SessionEntry[], rootIds: Iterable<string>): Set<string> {
+  // We need a fast way to get children.
+  const childrenMap = new Map<string, string[]>();
+  for (const e of entries) {
+    if (e.parentId) {
+      const siblings = childrenMap.get(e.parentId) || [];
+      siblings.push(e.id);
+      childrenMap.set(e.parentId, siblings);
+    }
+  }
+
+  const doomedIds = new Set<string>();
+
+  // Recursive function to mark a node and all its children for deletion
+  const markBranch = (nodeId: string) => {
+    if (doomedIds.has(nodeId)) return; // Already marked
+    doomedIds.add(nodeId);
+
+    const children = childrenMap.get(nodeId) || [];
+    for (const childId of children) {
+      markBranch(childId);
+    }
+  };
+
+  for (const id of rootIds) {
+    markBranch(id);
+  }
+  return doomedIds;
+}
+
 export default function (pi: ExtensionAPI) {
   pi.registerCommand("prune", {
     description: "Prune all branches labeled 'TVA-PRUNE' and their descendants",
@@ -35,37 +66,7 @@ export default function (pi: ExtensionAPI) {
       }
 
       // 2. Descendant Mapper: Find all children of the marked nodes
-      const parentMap = new Map<string, string | null>();
-      for (const e of entries) {
-        parentMap.set(e.id, e.parentId ?? null);
-      }
-
-      // We need a fast way to get children.
-      const childrenMap = new Map<string, string[]>();
-      for (const e of entries) {
-        if (e.parentId) {
-          const siblings = childrenMap.get(e.parentId) || [];
-          siblings.push(e.id);
-          childrenMap.set(e.parentId, siblings);
-        }
-      }
-
-      const doomedIds = new Set<string>();
-
-      // Recursive function to mark a node and all its children for deletion
-      const markBranch = (nodeId: string) => {
-        if (doomedIds.has(nodeId)) return; // Already marked
-        doomedIds.add(nodeId);
-        
-        const children = childrenMap.get(nodeId) || [];
-        for (const childId of children) {
-          markBranch(childId);
-        }
-      };
-
-      for (const target of pruneTargets) {
-        markBranch(target.id);
-      }
+      const doomedIds = collectDoomed(entries, pruneTargets.map((t) => t.id));
 
       logDebug(`Descendant Mapper identified ${doomedIds.size} total entries to be pruned.`);
 

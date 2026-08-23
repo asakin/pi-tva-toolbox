@@ -22,11 +22,33 @@
  * explicitly blanks it instead — the point is a clean rewind, not a resend.
  */
 
-import type { ExtensionAPI, SessionMessageEntry } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, SessionEntry, SessionMessageEntry } from "@earendil-works/pi-coding-agent";
 
 type UserMsg = Extract<SessionMessageEntry["message"], { role: "user" }>;
 
 const CLEAR_LABEL_PREFIX = "⌛ clear";
+
+export type FirstUser = { id: string; parentId: string | null; message: UserMsg };
+
+// Walk the current branch leaf → root (read-only), keeping the earliest user
+// message found. getEntry is the session's lookup; null when the branch has
+// no user message at all.
+export function findFirstUser(
+	leafId: string,
+	getEntry: (id: string) => SessionEntry | undefined
+): FirstUser | null {
+	let firstUser: FirstUser | null = null;
+	let cursor: string | null = leafId;
+	while (cursor) {
+		const entry = getEntry(cursor);
+		if (!entry) break;
+		if (entry.type === "message" && entry.message.role === "user") {
+			firstUser = { id: entry.id, parentId: entry.parentId, message: entry.message };
+		}
+		cursor = entry.parentId;
+	}
+	return firstUser;
+}
 
 export default function (pi: ExtensionAPI) {
 	pi.registerCommand("clear", {
@@ -38,18 +60,7 @@ export default function (pi: ExtensionAPI) {
 				return;
 			}
 
-			// Walk the current branch leaf → root (read-only), keeping the
-			// earliest user message found.
-			let firstUser: { id: string; parentId: string | null; message: UserMsg } | null = null;
-			let cursor: string | null = leafId;
-			while (cursor) {
-				const entry = ctx.sessionManager.getEntry(cursor);
-				if (!entry) break;
-				if (entry.type === "message" && entry.message.role === "user") {
-					firstUser = { id: entry.id, parentId: entry.parentId, message: entry.message };
-				}
-				cursor = entry.parentId;
-			}
+			const firstUser = findFirstUser(leafId, (id) => ctx.sessionManager.getEntry(id));
 			if (!firstUser) {
 				ctx.ui.notify("clear: no user message on this branch — nothing to rewind to.", "warning");
 				return;

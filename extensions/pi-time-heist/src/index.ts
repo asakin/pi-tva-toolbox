@@ -14,7 +14,7 @@ const GO_UP = "../";
 
 // Mirrors pi's own extractUserMessageText, which is internal. Text parts only,
 // so an image in the forked message is dropped rather than stringified.
-function userMessageText(content: unknown): string {
+export function userMessageText(content: unknown): string {
   if (typeof content === "string") return content;
   if (!Array.isArray(content)) return "";
   return content
@@ -23,7 +23,7 @@ function userMessageText(content: unknown): string {
     .join("");
 }
 
-function displayPath(dir: string): string {
+export function displayPath(dir: string): string {
   const home = os.homedir();
   // Only collapse a leading home path, not one appearing mid-string.
   const inHome = dir === home || dir.startsWith(home + path.sep);
@@ -40,7 +40,7 @@ type PendingHeist = {
 };
 let pendingHeist: PendingHeist | null = null;
 
-async function getSubdirectories(currentPath: string): Promise<string[]> {
+export async function getSubdirectories(currentPath: string): Promise<string[]> {
   try {
     const entries = await fs.readdir(currentPath, { withFileTypes: true });
 
@@ -52,6 +52,25 @@ async function getSubdirectories(currentPath: string): Promise<string[]> {
   } catch {
     return [];
   }
+}
+
+// "at" keeps the selected message, "before" starts from its parent --
+// matching what Pi's own fork does with event.position. Root-first order.
+export function reconstructBranch(
+  entries: SessionEntry[],
+  selected: SessionEntry,
+  position: "before" | "at"
+): SessionEntry[] {
+  const parentMap = new Map(entries.map((e) => [e.id, e]));
+  const branchEntries: SessionEntry[] = [];
+  let currentId = position === "at" ? selected.id : selected.parentId;
+  while (currentId) {
+    const entry = parentMap.get(currentId);
+    if (!entry) break;
+    branchEntries.unshift(entry); // Add to front for chronological order
+    currentId = entry.parentId;
+  }
+  return branchEntries;
 }
 
 export default function (pi: ExtensionAPI) {
@@ -147,17 +166,11 @@ export default function (pi: ExtensionAPI) {
           throw new Error(`Entry ${heist.entryId} is no longer in this session.`);
         }
 
-        // "at" keeps the selected message, "before" starts from its parent --
-        // matching what Pi's own fork does with event.position.
-        const parentMap = new Map(ctx.sessionManager.getEntries().map((e) => [e.id, e]));
-        const branchEntries: SessionEntry[] = [];
-        let currentId = heist.position === "at" ? selected.id : selected.parentId;
-        while (currentId) {
-          const entry = parentMap.get(currentId);
-          if (!entry) break;
-          branchEntries.unshift(entry); // Add to front for chronological order
-          currentId = entry.parentId;
-        }
+        const branchEntries = reconstructBranch(
+          ctx.sessionManager.getEntries(),
+          selected,
+          heist.position
+        );
         logDebug(`[Step 3] Reconstructed branch history: ${branchEntries.length} entries`);
 
         // SessionManager.create takes the cwd first, so the header carries the

@@ -1,19 +1,8 @@
-import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import type { ExtensionAPI, SessionEntry } from "@earendil-works/pi-coding-agent";
-import { appendFileSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
-import path from "node:path";
+import { createLogger } from "../../../lib/tva-log.ts";
 
-// Helper for debugging.
-const LOG_FILE = path.join(getAgentDir(), "tva.log");
-
-function logDebug(message: string) {
-  try {
-    appendFileSync(LOG_FILE, `[${new Date().toISOString()}] [PRUNER] ${message}\n`);
-  } catch (error) {
-    process.stderr.write(`tva: cannot write ${LOG_FILE}: ${error}\n`);
-  }
-}
+const logDebug = createLogger("PRUNER");
 
 export default function (pi: ExtensionAPI) {
   pi.registerCommand("prune", {

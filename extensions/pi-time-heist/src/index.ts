@@ -1,21 +1,11 @@
-import { getAgentDir, SessionManager } from "@earendil-works/pi-coding-agent";
+import { SessionManager } from "@earendil-works/pi-coding-agent";
 import type { ExtensionAPI, SessionEntry } from "@earendil-works/pi-coding-agent";
-import { appendFileSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import fs from "node:fs/promises";
+import { createLogger } from "../../../lib/tva-log.ts";
 
-// Helper for debugging.
-const LOG_FILE = path.join(getAgentDir(), "tva.log");
-
-function logDebug(message: string) {
-  try {
-    appendFileSync(LOG_FILE, `[${new Date().toISOString()}] ${message}\n`);
-  } catch (error) {
-    // Report rather than swallow, but never let a bad log path kill the fork.
-    process.stderr.write(`tva: cannot write ${LOG_FILE}: ${error}\n`);
-  }
-}
+const logDebug = createLogger("HEIST");
 
 // Browser menu entries.
 const GRAFT_HERE = "[ graft here ]";

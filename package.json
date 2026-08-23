@@ -25,7 +25,7 @@
     ]
   },
   "scripts": {
-    "check": "npm run check --workspaces --if-present",
+    "check": "tsc --noEmit && npm run check --workspaces --if-present",
     "test": "npm run test --workspaces --if-present"
   },
   "devDependencies": {

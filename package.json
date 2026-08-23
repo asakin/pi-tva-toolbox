@@ -5,7 +5,16 @@
   "author": "Ariel Sakin",
   "license": "Apache-2.0",
   "type": "module",
-  "private": true,
+  "private": false,
+  "files": [
+    "extensions/*/src/**",
+    "!**/*.test.ts",
+    "extensions/*/README.md",
+    "lib",
+    "README.md",
+    "LICENSE",
+    "NOTICE"
+  ],
   "keywords": [
     "pi-package",
     "pi-extension",
@@ -27,6 +36,9 @@
   "scripts": {
     "check": "tsc --noEmit && npm run check --workspaces --if-present",
     "test": "npm run test --workspaces --if-present"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
   },
   "devDependencies": {
     "@earendil-works/pi-coding-agent": "0.81.1",

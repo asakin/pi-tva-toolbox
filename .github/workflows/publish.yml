@@ -1,0 +1,37 @@
+name: Publish
+
+# Publishes the toolbox root package to npm when a GitHub release is published.
+on:
+  release:
+    types: [published]
+
+# Trusted publishing: npm authenticates this job by its OIDC token, so there is
+# no long-lived NPM_TOKEN secret. The trusted publisher (GitHub Actions, this
+# repo, workflow file publish.yml) is configured on npmjs.com in the package's
+# settings, which only exist after the first publish — so the first one is
+# manual (`npm publish` from a clean checkout). Requires npm >= 11.5.1; the
+# Node 26 toolchain below ships newer.
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: npm
+          registry-url: https://registry.npmjs.org
+      # The release tag must be the package version, so a tag never ships a
+      # manifest that disagrees with it.
+      - run: |
+          want="v$(npm pkg get version | tr -d '"')"
+          [ "$want" = "$GITHUB_REF_NAME" ] || { echo "tag $GITHUB_REF_NAME != package version $want"; exit 1; }
+      - run: npm ci --ignore-scripts
+      - run: npm run check
+      - run: npm test
+      # Root package only; the workspaces under extensions/ are not published.
+      - run: npm publish

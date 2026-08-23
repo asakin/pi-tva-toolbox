@@ -21,7 +21,13 @@ branches, and checking the dependency versions written along the way.
 
 ## Install
 
-From git (shared / published checkout):
+From npm:
+
+```bash
+pi install npm:pi-tva-toolbox
+```
+
+Or straight from git:
 
 ```bash
 pi install git:github.com/asakin/pi-tva-toolbox
@@ -33,19 +39,15 @@ To load only some of the listed extensions, use the object form in your settings
 {
   "packages": [
     {
-      "source": "git:github.com/asakin/pi-tva-toolbox",
+      "source": "npm:pi-tva-toolbox",
       "extensions": ["extensions/pi-time-heist/src/index.ts"]
     }
   ]
 }
 ```
 
-Individual packages are not on npm yet. When they are, the scope is `@arielsakin` — note
-that it differs from the GitHub account:
-
-```bash
-pi install npm:@arielsakin/pi-time-heist      # not published yet
-```
+The toolbox is the unit: individual extensions are not published separately.
+Filter as above to load a subset.
 
 ## Development
 
@@ -55,7 +57,9 @@ extension like `pi-ambient`): one installable root, explicit opt-in list in
 but stay unloaded until you append their entry path to that array.
 
 Each tool under `extensions/` is also its own npm workspace (own `package.json`,
-version, and per-package `pi` manifest) for later individual publish.
+version, and per-package `pi` manifest) so it typechecks and tests in isolation.
+Code shared across tools lives in `lib/` (the `tva.log` writer), which is why the
+root, not a workspace, is the publishable unit.
 
 ### Live against a local checkout
 
@@ -92,13 +96,23 @@ pi install /Users/arielsakin/projects/OSS/pi-extensions/pi-tva-toolbox
 
 ```bash
 npm install
-npm run check      # typecheck every workspace
+npm run check      # typecheck lib/ and every workspace
+npm test           # node --test in every workspace
 ```
 
 Extensions are plain TypeScript, loaded by pi through jiti. There is no build step.
 
 To ship a new tool: add the workspace under `extensions/`, then append its entry
 path to the root `pi.extensions` array when it is ready to load.
+
+### Release
+
+Bump `version` in the root `package.json`, tag it `vX.Y.Z`, and publish a GitHub
+release for that tag. `.github/workflows/publish.yml` checks the tag against the
+version, runs check + test, and publishes the root package to npm via trusted
+publishing. The first publish is manual (`npm publish` from a clean checkout), since
+the trusted publisher is configured in the package's npmjs.com settings, which exist
+only once the package does.
 
 ## License
 

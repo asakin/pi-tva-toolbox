@@ -6,7 +6,7 @@ import {
 	planForgetfulRewrite,
 	type PluckPlan,
 } from "./plan-forgetful-rewrite.ts";
-import type { ForgottenTurn, OverlayNote } from "./notes.ts";
+import type { CancelNote, ForgottenTurn, OverlayNote } from "./notes.ts";
 import { formatPattern } from "./format-pattern.ts";
 
 // Re-export so the handler and tests can import the public steps from one place.
@@ -130,4 +130,15 @@ export function buildSummaryMessage(plan: OkPlan, labelText: string): string {
 		`Forgot ${plan.skippedCount} of ${plan.originalTurnCount} turn(s) under label "${labelText}".` +
 		` Nothing was cloned; the turns stay in the session file and /unpluck restores them.`
 	);
+}
+
+/** One selectable row for /unpluck: the note's label plus how many turns it forgets. */
+export function formatUnpluckOption(note: OverlayNote): string {
+	const n = note.forgotten.length;
+	return `${note.labelText} — ${n} turn${n === 1 ? "" : "s"}`;
+}
+
+/** The cancel note /unpluck appends for one overlay note. */
+export function buildCancelNote(noteId: string): CancelNote {
+	return { kind: "cancel", noteIds: [noteId] };
 }

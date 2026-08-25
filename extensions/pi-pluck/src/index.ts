@@ -3,12 +3,14 @@ import type {
 	ExtensionCommandContext,
 } from "@earendil-works/pi-coding-agent";
 import { invalidate, registerHooks } from "./hooks.ts";
-import { PLUCK_CUSTOM_TYPE } from "./notes.ts";
+import { listOverlayNotes, PLUCK_CUSTOM_TYPE } from "./notes.ts";
 import {
+	buildCancelNote,
 	buildConfirmMessage,
 	buildLabelText,
 	buildOverlayNote,
 	buildSummaryMessage,
+	formatUnpluckOption,
 	planForgetfulRewrite,
 	splitPathIntoTurns,
 	validateRegex,
@@ -115,6 +117,59 @@ export default function (pi: ExtensionAPI) {
 			}
 
 			ctx.ui.notify(buildSummaryMessage(plan, labelText), "info");
+		},
+	});
+
+	pi.registerCommand("unpluck", {
+		description:
+			"Restore the turns forgotten by an earlier /pluck on the active branch "
+			+ "(appends a cancel note; nothing is deleted)",
+
+		handler: async (_args: string, ctx: ExtensionCommandContext) => {
+			let active: ReturnType<typeof listOverlayNotes>;
+			try {
+				active = listOverlayNotes(ctx.sessionManager.getBranch()).filter(
+					(item) => !item.cancelled,
+				);
+			} catch (error) {
+				ctx.ui.notify(`unpluck: ${errorMessage(error)}`, "error");
+				return;
+			}
+
+			if (active.length === 0) {
+				ctx.ui.notify(
+					"unpluck: no active pluck on this branch. Nothing to restore.",
+					"info",
+				);
+				return;
+			}
+
+			const options = active.map((item) => formatUnpluckOption(item.note));
+			const picked = await ctx.ui.select("Restore which pluck?", options);
+			if (picked === undefined) {
+				ctx.ui.notify("unpluck: aborted.", "info");
+				return;
+			}
+			const index = options.indexOf(picked);
+			const target = active[index];
+			if (!target) {
+				ctx.ui.notify("unpluck: selection did not match a pluck.", "error");
+				return;
+			}
+
+			try {
+				appendNoteAndGetId(pi, ctx, buildCancelNote(target.id));
+				invalidate();
+			} catch (error) {
+				ctx.ui.notify(`unpluck failed: ${errorMessage(error)}`, "error");
+				return;
+			}
+
+			const n = target.note.forgotten.length;
+			ctx.ui.notify(
+				`Restored ${n} turn${n === 1 ? "" : "s"} from "${target.note.labelText}". They are back in the model's window.`,
+				"info",
+			);
 		},
 	});
 }

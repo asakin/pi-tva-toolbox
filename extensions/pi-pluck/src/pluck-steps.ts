@@ -132,10 +132,10 @@ export function buildSummaryMessage(plan: OkPlan, labelText: string): string {
 	);
 }
 
-/** One selectable row for /unpluck: the note's label plus how many turns it forgets. */
-export function formatUnpluckOption(note: OverlayNote): string {
+/** One selectable row for /unpluck: position (labels can repeat), label, turn count. */
+export function formatUnpluckOption(note: OverlayNote, position: number): string {
 	const n = note.forgotten.length;
-	return `${note.labelText} — ${n} turn${n === 1 ? "" : "s"}`;
+	return `${position}. ${note.labelText} — ${n} turn${n === 1 ? "" : "s"}`;
 }
 
 /** The cancel note /unpluck appends for one overlay note. */

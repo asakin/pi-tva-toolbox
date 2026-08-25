@@ -3,13 +3,7 @@ import { formatPattern } from "./format-pattern.ts";
 
 const PREVIEW_LIST_MAX = 8;
 
-/**
- * Confirm-dialog body for /pluck.
- *
- * Copy is meant to be reviewed carefully — keep it plain, factual, and aimed
- * at a yes/no decision. The handler owns ctx.ui.confirm; this only builds text.
- * (Dialog title already asks whether to forget — do not repeat that here.)
- */
+/** Confirm-dialog body for /pluck; the dialog title already asks the question. */
 export function buildConfirmMessage(
 	plan: Extract<PluckPlan, { ok: true }>,
 ): string {
@@ -62,7 +56,7 @@ export function buildConfirmMessage(
 
 	lines.push("");
 	lines.push(
-		"Nothing is cloned or deleted: one note is appended and the label shows in /tree. /unpluck restores.",
+		"Nothing is deleted: one note is appended and its label shows in /tree. /unpluck restores.",
 	);
 
 	return lines.join("\n");

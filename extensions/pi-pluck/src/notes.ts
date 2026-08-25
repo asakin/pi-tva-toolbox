@@ -17,9 +17,7 @@ export type OverlayNote = {
 	forgotten: ForgottenTurn[];
 };
 export type CancelNote = { kind: "cancel"; noteIds: string[] };
-/** Written by the retired clone-based pluck. Recognised so old sessions load; never shapes. */
-export type LegacyNote = { kind: "trunk-anchor"; [k: string]: unknown };
-export type PluckNote = OverlayNote | CancelNote | LegacyNote;
+export type PluckNote = OverlayNote | CancelNote;
 
 /** User-message timestamps (ms) of every turn currently forgotten on a path. */
 export type ForgottenSet = ReadonlySet<number>;
@@ -79,7 +77,7 @@ function isPluckEntry(entry: SessionEntry): entry is PluckEntry {
 	return entry.type === "custom" && entry.customType === PLUCK_CUSTOM_TYPE;
 }
 
-// Notes come off disk from any past version of this extension, so shape-check rather than trust.
+// Notes come off disk, so shape-check rather than trust.
 function isOverlay(data: unknown): data is OverlayNote {
 	if (typeof data !== "object" || data === null) return false;
 	const d = data as Record<string, unknown>;

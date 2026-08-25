@@ -20,10 +20,7 @@ function errorMessage(error: unknown): string {
 	return error instanceof Error ? error.message : String(error);
 }
 
-/**
- * `pi.appendEntry` is synchronous and advances the leaf, so the leaf right
- * after the call is the note we just wrote. Verify before labelling it.
- */
+/** `pi.appendEntry` advances the leaf synchronously; verify it is our note before labelling. */
 function appendNoteAndGetId(
 	pi: ExtensionAPI,
 	ctx: ExtensionCommandContext,
@@ -43,16 +40,30 @@ function appendNoteAndGetId(
 	return noteId;
 }
 
+// Both commands need a confirm/select dialog and must not run while a turn is streaming.
+// ui.notify is a no-op without a UI (print/json), so that case also goes to stderr.
+function ready(ctx: ExtensionCommandContext, command: string): boolean {
+	if (!ctx.hasUI) {
+		const text = `${command}: needs an interactive session (tui or rpc).`;
+		ctx.ui.notify(text, "error");
+		console.error(text);
+		return false;
+	}
+	if (!ctx.isIdle()) {
+		ctx.ui.notify(`${command}: wait for the agent to finish its turn.`, "warning");
+		return false;
+	}
+	return true;
+}
+
 export default function (pi: ExtensionAPI) {
 	registerHooks(pi);
 
 	pi.registerCommand("pluck", {
-		description:
-			"Forget the turns that match a regex: they leave the model's window but stay in "
-			+ "the session (one note on the active branch; /unpluck restores)",
+		description: "Forget the turns matching a regex on the active branch (/unpluck restores)",
 
-		// TUI talk and every ending return live here. Steps only compute / mutate.
 		handler: async (args: string, ctx: ExtensionCommandContext) => {
+			if (!ready(ctx, "pluck")) return;
 			const regexStr = args.trim();
 
 			let regex: RegExp;
@@ -74,7 +85,6 @@ export default function (pi: ExtensionAPI) {
 				return;
 			}
 
-			// Decide what to keep and what to forget.
 			const plan = planForgetfulRewrite(turns, regex, regexStr);
 
 			if (!plan.ok) {
@@ -85,7 +95,7 @@ export default function (pi: ExtensionAPI) {
 					);
 				} else if (plan.reason === "catches_all") {
 					ctx.ui.notify(
-						`pluck: /${regexStr}/i matches every turn on this branch — refine the pattern so something remains.`,
+						`pluck: /${regexStr}/i matches every turn on this branch; refine the pattern so something remains.`,
 						"error",
 					);
 				} else {
@@ -94,7 +104,6 @@ export default function (pi: ExtensionAPI) {
 				return;
 			}
 
-			// Show counts (and warn if the first prompt matched but must stay).
 			const confirmed = await ctx.ui.confirm(
 				"Forget these turns?",
 				buildConfirmMessage(plan),
@@ -104,7 +113,6 @@ export default function (pi: ExtensionAPI) {
 				return;
 			}
 
-			// One note on the active branch; the label on it is the /tree signpost.
 			const labelText = buildLabelText(plan);
 			try {
 				const note = buildOverlayNote(turns, plan, labelText);
@@ -121,11 +129,10 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.registerCommand("unpluck", {
-		description:
-			"Restore the turns forgotten by an earlier /pluck on the active branch "
-			+ "(appends a cancel note; nothing is deleted)",
+		description: "Restore turns forgotten by /pluck on the active branch",
 
 		handler: async (_args: string, ctx: ExtensionCommandContext) => {
+			if (!ready(ctx, "unpluck")) return;
 			let active: ReturnType<typeof listOverlayNotes>;
 			try {
 				active = listOverlayNotes(ctx.sessionManager.getBranch()).filter(

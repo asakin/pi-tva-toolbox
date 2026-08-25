@@ -144,7 +144,9 @@ export default function (pi: ExtensionAPI) {
 				return;
 			}
 
-			const options = active.map((item) => formatUnpluckOption(item.note));
+			const options = active.map((item, i) =>
+				formatUnpluckOption(item.note, i + 1),
+			);
 			const picked = await ctx.ui.select("Restore which pluck?", options);
 			if (picked === undefined) {
 				ctx.ui.notify("unpluck: aborted.", "info");

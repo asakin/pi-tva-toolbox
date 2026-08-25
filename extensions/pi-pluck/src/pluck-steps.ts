@@ -6,12 +6,12 @@ import {
 	planForgetfulRewrite,
 	type PluckPlan,
 } from "./plan-forgetful-rewrite.ts";
+import type { CancelNote, ForgottenTurn, OverlayNote } from "./notes.ts";
+import { formatPattern } from "./format-pattern.ts";
 
 // Re-export so the handler and tests can import the public steps from one place.
 export type { PluckPlan };
 export { planForgetfulRewrite };
-/** Labeled side-branch growth (clones + label on first node); stays on the trunk. */
-export { growForgetfulBranch, buildLabelText } from "./grow-forgetful-branch.ts";
 /** Confirm-dialog body — plain copy for a yes/no decision. */
 export { buildConfirmMessage } from "./build-confirm-message.ts";
 /** Display /pattern/i with escaped slashes. */
@@ -19,6 +19,8 @@ export { formatPattern } from "./format-pattern.ts";
 
 /** One conversation turn: a user message plus everything until the next user message. */
 export type Turn = SessionEntry[];
+
+type OkPlan = Extract<PluckPlan, { ok: true }>;
 
 /**
  * Turn the /pluck argument into a RegExp.
@@ -61,23 +63,82 @@ export function splitPathIntoTurns(ctx: ExtensionCommandContext): Turn[] {
 	return turns;
 }
 
+/** Label text for /tree: plucked X/Y, regex, clock time. */
+export function buildLabelText(
+	plan: OkPlan,
+	labelTime = new Date().toTimeString().slice(0, 5),
+): string {
+	return `plucked ${plan.skippedCount}/${plan.originalTurnCount} ${formatPattern(plan.regexStr)} ${labelTime}`;
+}
+
+/**
+ * The turns the plan forgets, keyed the way `shape()` matches them: the user
+ * message's millisecond timestamp (entryId is for listings only).
+ *
+ * A turn is forgotten when it is not in `plan.keptTurns` (compared by first
+ * entry id). For a rootProtected head the plan keeps the whole turn, so it is
+ * present in keptTurns and nothing is forgotten for it — overlays are
+ * turn-granular and never drop half a turn.
+ */
+export function buildForgottenTurns(
+	turns: Turn[],
+	plan: OkPlan,
+): ForgottenTurn[] {
+	const keptFirstIds = new Set<string>();
+	for (const turn of plan.keptTurns) {
+		if (turn[0]) keptFirstIds.add(turn[0].id);
+	}
+	const forgotten: ForgottenTurn[] = [];
+	for (const turn of turns) {
+		const first = turn[0];
+		if (!first || keptFirstIds.has(first.id)) continue;
+		const user = turn.find(
+			(entry) => entry.type === "message" && entry.message.role === "user",
+		);
+		if (!user || user.type !== "message") continue;
+		const ts = user.message.timestamp;
+		if (typeof ts !== "number") {
+			throw new Error(
+				`pluck: user message ${user.id} has no numeric timestamp; cannot key the turn`,
+			);
+		}
+		forgotten.push({ ts, entryId: user.id });
+	}
+	return forgotten;
+}
+
+/** The overlay note /pluck appends: what the user confirmed, resolved at pluck time. */
+export function buildOverlayNote(
+	turns: Turn[],
+	plan: OkPlan,
+	labelText: string,
+): OverlayNote {
+	return {
+		kind: "overlay",
+		regexStr: plan.regexStr,
+		labelText,
+		forgotten: buildForgottenTurns(turns, plan),
+	};
+}
+
 /**
  * Build the success summary string. The handler notifies with it.
- * Keep it human: label + counts + how to jump — no raw entry ids.
+ * Keep it human: label + counts + how to undo — no raw entry ids.
  */
-export function buildSummaryMessage(
-	plan: Extract<PluckPlan, { ok: true }>,
-	_labeledRootId: string,
-	labelText: string,
-	clonedCount?: number,
-	_tipId?: string,
-): string {
-	const clonePart =
-		clonedCount === undefined ? "" : ` Cloned ${clonedCount} entries.`;
+export function buildSummaryMessage(plan: OkPlan, labelText: string): string {
 	return (
-		`Created forgetful branch labeled "${labelText}".` +
-		clonePart +
-		` Forgot ${plan.skippedCount} of ${plan.originalTurnCount} turn(s).` +
-		` Still on your current trunk — open /tree, select that label, continue from the tip under it.`
+		`Forgot ${plan.skippedCount} of ${plan.originalTurnCount} turn(s) under label "${labelText}".` +
+		` Nothing was cloned; the turns stay in the session file and /unpluck restores them.`
 	);
+}
+
+/** One selectable row for /unpluck: position (labels can repeat), label, turn count. */
+export function formatUnpluckOption(note: OverlayNote, position: number): string {
+	const n = note.forgotten.length;
+	return `${position}. ${note.labelText} — ${n} turn${n === 1 ? "" : "s"}`;
+}
+
+/** The cancel note /unpluck appends for one overlay note. */
+export function buildCancelNote(noteId: string): CancelNote {
+	return { kind: "cancel", noteIds: [noteId] };
 }

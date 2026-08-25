@@ -8,7 +8,7 @@ const PREVIEW_LIST_MAX = 8;
  *
  * Copy is meant to be reviewed carefully — keep it plain, factual, and aimed
  * at a yes/no decision. The handler owns ctx.ui.confirm; this only builds text.
- * (Dialog title already asks to create the branch — do not repeat that here.)
+ * (Dialog title already asks whether to forget — do not repeat that here.)
  */
 export function buildConfirmMessage(
 	plan: Extract<PluckPlan, { ok: true }>,
@@ -23,23 +23,18 @@ export function buildConfirmMessage(
 		);
 		lines.push("");
 		lines.push(
-			"Warning: first user prompt matched but is kept.",
+			"Warning: first user prompt matched but the whole head turn is kept.",
 		);
 		const keptPrompt = headUserPreview(plan);
 		if (keptPrompt) {
 			lines.push(`Keeping: ${keptPrompt}`);
 		}
 		lines.push(
-			"Forgetting from that turn: first assistant reply (and its tools).",
+			`Forgetting ${plan.skippedCount} later matching turn(s).`,
 		);
-		if (plan.skippedCount > 1) {
-			lines.push(
-				`Also forgetting ${plan.skippedCount - 1} other matching turn(s).`,
-			);
-		}
 	} else {
 		lines.push(
-			`Will forget ${plan.skippedCount} of ${plan.originalTurnCount} turn(s) on this path.`,
+			`Will forget ${plan.skippedCount} of ${plan.originalTurnCount} turn(s) on the active branch.`,
 		);
 	}
 
@@ -62,14 +57,12 @@ export function buildConfirmMessage(
 			`Keeps ${plan.keptTurnCount} turn(s) after that protected prompt.`,
 		);
 	} else {
-		lines.push(
-			`Forgetful branch keeps ${plan.keptTurnCount} turn(s).`,
-		);
+		lines.push(`The model keeps seeing ${plan.keptTurnCount} turn(s).`);
 	}
 
 	lines.push("");
 	lines.push(
-		"Stay on trunk. Later: /tree → [plucked …] label → tip.",
+		"Nothing is cloned or deleted: one note is appended and the label shows in /tree. /unpluck restores.",
 	);
 
 	return lines.join("\n");

@@ -14,7 +14,7 @@ export type PluckPlan =
 			skippedCount: number;
 			originalTurnCount: number;
 			keptTurnCount: number;
-			/** True when the first user turn matched and the session head was kept. */
+			/** True when the first user turn matched and the whole session-head turn was kept. */
 			rootProtected: boolean;
 			/**
 			 * Last shared kept ancestor id on the original path.
@@ -24,7 +24,7 @@ export type PluckPlan =
 			divergenceParentId: string;
 			/**
 			 * One short line per forgotten turn (for confirm UI).
-			 * For rootProtected head turns, previews the forgotten assistant side — not the kept prompt.
+			 * Whole turns only — never a half-forgotten head assistant side.
 			 */
 			forgottenPreviews: string[];
 	  };
@@ -46,21 +46,6 @@ function turnPreview(turn: Turn): string {
 		}
 	}
 	for (const entry of turn) {
-		const text = entryMatchText(entry);
-		if (text) return truncatePreview(text);
-	}
-	return "(no text)";
-}
-
-/** Preview for the omitted tail of a rootProtected turn (assistant + tools). */
-function forgottenSlicePreview(entries: SessionEntry[]): string {
-	for (const entry of entries) {
-		if (entry.type === "message" && entry.message.role === "assistant") {
-			const text = entryMatchText(entry);
-			if (text) return truncatePreview(text);
-		}
-	}
-	for (const entry of entries) {
 		const text = entryMatchText(entry);
 		if (text) return truncatePreview(text);
 	}
@@ -140,13 +125,14 @@ function findFirstUserId(turns: Turn[]): string | null {
 /**
  * Decide what a forgetful rewrite would look like — pure planning, no session writes.
  *
- * - Keep turns that do not match; omit turns that do.
- * - If the first user turn matches, keep that prompt and forget the rest of its cycle
- *   (rootProtected). Dropping the session head would rewrite shared history or force
- *   a multi-root tree.
+ * - Keep turns that do not match; omit turns that do (whole turns only).
+ * - If the first user turn matches, keep that entire turn (rootProtected) and forget
+ *   only later matching turns. The overlay cannot drop half a turn, and dropping the
+ *   session head would rewrite shared history or force a multi-root tree.
  * - Grow clones the full kept chain in parallel. divergenceParentId records the last
  *   shared kept ancestor on the original path (bookkeeping / debugging only).
  * - If the shared prefix with the original path is empty, the plan is not useful.
+ * - If only the head matched, nothing is forgotten → not_useful.
  */
 export function planForgetfulRewrite(
 	turns: Turn[],
@@ -167,28 +153,21 @@ export function planForgetfulRewrite(
 			continue;
 		}
 
-		skippedCount++;
 		const userIdx = firstUserId
 			? turn.findIndex((entry) => entry.id === firstUserId)
 			: -1;
 
-		// Session head must stay: dropping it rewrites every other branch's history
-		// or forces a multi-root tree. Keep the prompt; forget the rest of that cycle.
+		// Session head must stay as a whole turn: the overlay is turn-granular, and
+		// dropping the head rewrites every other branch's history or forces a
+		// multi-root tree. Do not count it as forgotten.
 		if (userIdx >= 0 && !rootProtected) {
 			rootProtected = true;
-			keptTurns.push(turn.slice(0, userIdx + 1));
-			const forgotten = turn.slice(userIdx + 1);
-			if (forgotten.length > 0) {
-				forgottenPreviews.push(forgottenSlicePreview(forgotten));
-			}
-		} else {
-			// Matching turn with no protected head → omit entirely.
-			forgottenPreviews.push(turnPreview(turn));
+			keptTurns.push(turn);
+			continue;
 		}
-	}
 
-	if (skippedCount === 0) {
-		return { ok: false, reason: "no_match", regexStr };
+		skippedCount++;
+		forgottenPreviews.push(turnPreview(turn));
 	}
 
 	// .* / blanket patterns: every turn matched. Even with root-protect, that is a
@@ -199,7 +178,9 @@ export function planForgetfulRewrite(
 
 	// Preamble (model_change, etc.) often has no matchable text, so it never
 	// "matches" — but if every user-led turn matched, the conversation is wiped
-	// (rootProtected would leave only a stub head). Refuse as catch-all.
+	// (rootProtected would keep only the head turn). Refuse as catch-all.
+	// Checked before the skippedCount===0 exit so a sole matching head is
+	// catches_all, not not_useful.
 	const userTurns = turns.filter((turn) =>
 		turn.some(
 			(entry) =>
@@ -211,6 +192,14 @@ export function planForgetfulRewrite(
 		userTurns.every((turn) => turnMatches(turn, regex))
 	) {
 		return { ok: false, reason: "catches_all", regexStr };
+	}
+
+	if (skippedCount === 0) {
+		// Head may have matched, but nothing was actually forgotten.
+		if (rootProtected) {
+			return { ok: false, reason: "not_useful", regexStr };
+		}
+		return { ok: false, reason: "no_match", regexStr };
 	}
 
 	// Shared prefix with the original path — recorded as divergenceParentId for

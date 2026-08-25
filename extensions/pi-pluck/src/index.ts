@@ -2,10 +2,13 @@ import type {
 	ExtensionAPI,
 	ExtensionCommandContext,
 } from "@earendil-works/pi-coding-agent";
+import { invalidate, registerHooks } from "./hooks.ts";
+import { PLUCK_CUSTOM_TYPE } from "./notes.ts";
 import {
 	buildConfirmMessage,
+	buildLabelText,
+	buildOverlayNote,
 	buildSummaryMessage,
-	growForgetfulBranch,
 	planForgetfulRewrite,
 	splitPathIntoTurns,
 	validateRegex,
@@ -15,11 +18,36 @@ function errorMessage(error: unknown): string {
 	return error instanceof Error ? error.message : String(error);
 }
 
+/**
+ * `pi.appendEntry` is synchronous and advances the leaf, so the leaf right
+ * after the call is the note we just wrote. Verify before labelling it.
+ */
+function appendNoteAndGetId(
+	pi: ExtensionAPI,
+	ctx: ExtensionCommandContext,
+	note: unknown,
+): string {
+	pi.appendEntry(PLUCK_CUSTOM_TYPE, note);
+	const noteId = ctx.sessionManager.getLeafId();
+	const entry = noteId ? ctx.sessionManager.getEntry(noteId) : undefined;
+	if (
+		!noteId ||
+		!entry ||
+		entry.type !== "custom" ||
+		entry.customType !== PLUCK_CUSTOM_TYPE
+	) {
+		throw new Error("note was appended but the leaf is not the new note");
+	}
+	return noteId;
+}
+
 export default function (pi: ExtensionAPI) {
+	registerHooks(pi);
+
 	pi.registerCommand("pluck", {
 		description:
-			"Create a labeled forgetful side-branch omitting turns that match a regex "
-			+ "(stays on current trunk; jump via /tree to the [plucked …] label on the branch root)",
+			"Forget the turns that match a regex: they leave the model's window but stay in "
+			+ "the session (one note on the active branch; /unpluck restores)",
 
 		// TUI talk and every ending return live here. Steps only compute / mutate.
 		handler: async (args: string, ctx: ExtensionCommandContext) => {
@@ -44,7 +72,7 @@ export default function (pi: ExtensionAPI) {
 				return;
 			}
 
-			// Decide what to keep, what to forget, and where the side-branch starts.
+			// Decide what to keep and what to forget.
 			const plan = planForgetfulRewrite(turns, regex, regexStr);
 
 			if (!plan.ok) {
@@ -55,21 +83,18 @@ export default function (pi: ExtensionAPI) {
 					);
 				} else if (plan.reason === "catches_all") {
 					ctx.ui.notify(
-						`pluck: /${regexStr}/i matches every turn on this path — refine the pattern so something remains.`,
+						`pluck: /${regexStr}/i matches every turn on this branch — refine the pattern so something remains.`,
 						"error",
 					);
 				} else {
-					ctx.ui.notify(
-						"pluck: nowhere useful to grow a forgetful branch.",
-						"error",
-					);
+					ctx.ui.notify("pluck: nothing useful to forget here.", "error");
 				}
 				return;
 			}
 
 			// Show counts (and warn if the first prompt matched but must stay).
 			const confirmed = await ctx.ui.confirm(
-				"Create forgetful branch?",
+				"Forget these turns?",
 				buildConfirmMessage(plan),
 			);
 			if (!confirmed) {
@@ -77,29 +102,19 @@ export default function (pi: ExtensionAPI) {
 				return;
 			}
 
-			// Build the labeled forgetful side-branch; leave the user on the trunk.
-			let labeledRootId: string;
-			let labelText: string;
-			let clonedCount: number;
-			let tipId: string;
+			// One note on the active branch; the label on it is the /tree signpost.
+			const labelText = buildLabelText(plan);
 			try {
-				({ labeledRootId, labelText, clonedCount, tipId } =
-					growForgetfulBranch(ctx, plan));
+				const note = buildOverlayNote(turns, plan, labelText);
+				const noteId = appendNoteAndGetId(pi, ctx, note);
+				pi.setLabel(noteId, labelText);
+				invalidate();
 			} catch (error) {
 				ctx.ui.notify(`pluck failed: ${errorMessage(error)}`, "error");
 				return;
 			}
 
-			ctx.ui.notify(
-				buildSummaryMessage(
-					plan,
-					labeledRootId,
-					labelText,
-					clonedCount,
-					tipId,
-				),
-				"info",
-			);
+			ctx.ui.notify(buildSummaryMessage(plan, labelText), "info");
 		},
 	});
 }

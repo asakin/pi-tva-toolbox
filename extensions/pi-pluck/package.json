@@ -1,11 +1,14 @@
 {
   "name": "@arielsakin/pi-pluck",
   "version": "0.1.0",
-  "description": "Forget the turns that match a regex: one note on the active branch, nothing cloned or deleted, /unpluck restores",
+  "description": "Forget the turns that match a regex: one note on the active branch, nothing deleted, /unpluck restores",
   "type": "module",
   "license": "Apache-2.0",
   "author": "Ariel Sakin",
   "private": false,
+  "engines": {
+    "node": ">=22.19.0"
+  },
   "publishConfig": {
     "access": "public"
   },
@@ -34,10 +37,10 @@
     "test": "node --test"
   },
   "peerDependencies": {
-    "@earendil-works/pi-coding-agent": "*"
+    "@earendil-works/pi-coding-agent": ">=0.84.0"
   },
   "devDependencies": {
-    "@earendil-works/pi-coding-agent": "0.84.2",
+    "@earendil-works/pi-coding-agent": "0.84.3",
     "@types/node": "26.2.0",
     "typescript": "7.0.2"
   },

@@ -1,5 +1,7 @@
 # pi-tva-toolbox
 
+[![npm](https://img.shields.io/npm/v/pi-tva-toolbox)](https://www.npmjs.com/package/pi-tva-toolbox) [![CI](https://github.com/asakin/pi-tva-toolbox/actions/workflows/ci.yml/badge.svg)](https://github.com/asakin/pi-tva-toolbox/actions/workflows/ci.yml) [![pi ≥ 0.84](https://img.shields.io/badge/pi-%E2%89%A50.84-blue)](https://pi.dev) [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-green)](LICENSE)
+
 pi-tva-toolbox — Tree · Versions · Alternatives. Session-tree tools for
 [pi](https://pi.dev), the terminal coding agent.
 

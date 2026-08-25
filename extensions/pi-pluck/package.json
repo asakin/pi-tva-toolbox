@@ -1,7 +1,7 @@
 {
   "name": "@arielsakin/pi-pluck",
   "version": "0.1.0",
-  "description": "Create a labeled forgetful side-branch by omitting the turns that match a regex",
+  "description": "Forget the turns that match a regex: one note on the active branch, nothing cloned or deleted, /unpluck restores",
   "type": "module",
   "license": "Apache-2.0",
   "author": "Ariel Sakin",

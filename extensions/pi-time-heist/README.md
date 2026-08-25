@@ -30,26 +30,27 @@ Fork as you normally would (`/fork` or `/clone`, or your bound key) and pick the
 message to fork from. Instead of forking immediately, a directory picker appears:
 
 ```
-Fork into: ~/projects
-  [ fork here ]
-  ../
+Time Heist - target: ~/projects
+  [ graft here ]
   ~/
+  ../
   my-service/
   my-website/
 ```
 
-Navigate and choose `[ fork here ]`. Picking the directory you are already in hands
+Navigate and choose `[ graft here ]`. Picking the directory you are already in hands
 the fork back to pi, which forks natively. Picking another directory records it:
 
 ```
-Target: ~/projects/other-repo. Run /heist to fork there.
+Heist trajectory locked → ~/projects/other-repo
+Type /heist to initiate the jump.
 ```
 
 Run `/heist` and you land in a new session in that directory, carrying the branch up
 to the message you forked from:
 
 ```
-Forked into ~/projects/other-repo
+Branch history grafted into ~/projects/other-repo
 ```
 
 Two steps because the fork hook can only cancel the native fork and remember the
@@ -67,17 +68,15 @@ target; switching sessions is available to commands, so `/heist` finishes the mo
   in the new session with that in mind.
 - A recorded target is dropped if the session changes underneath it, on `/reload`, and
   on any failure. There is no retry; fork again.
-- Escaping the picker cancels the fork (`Fork cancelled.`).
-- Requires a persisted session and an interactive UI. Without one (`pi -p`, JSON mode)
-  the hook does nothing and the fork proceeds natively.
+- Escaping the picker cancels the fork (`Heist aborted.`).
+- Requires a persisted session and an interactive UI.
 
 ## What it writes
 
 - The target directory, created if missing.
 - One new session file under pi's session directory for that target, next to the ones
   pi itself would create there (`~/.pi/agent/sessions/--<target-path>--/`).
-- Set `PI_TVA_DEBUG=1` to log each step to `~/.pi/agent/tva.log` (tag `pi-time-heist`).
-  Off by default.
+- A step log at `~/.pi/agent/tva.log` (tag `HEIST`), written through `@arielsakin/pi-tva-lib`.
 
 Nothing leaves your machine.
 

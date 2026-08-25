@@ -82,8 +82,12 @@ export function registerHooks(pi: ExtensionAPI, deps?: HookDeps): void {
 				auth.env,
 			);
 			return { compaction: result };
-		} catch {
-			// Never throw from a hook: let pi compact unshaped.
+		} catch (error) {
+			// Never throw from a hook: pi compacts unshaped, and the user is told.
+			const message = error instanceof Error ? error.message : String(error);
+			const text = `pluck: shaped compaction failed (${message}); pi is compacting with the forgotten turns included.`;
+			console.error(text);
+			if (ctx.hasUI) ctx.ui.notify(text, "warning");
 			return undefined;
 		}
 	});

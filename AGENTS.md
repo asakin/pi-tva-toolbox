@@ -1,26 +1,16 @@
 # AGENTS.md
 
 ## Project State
-This repository is a monorepo of Pi extensions for manipulating session files and
-related agent tooling. Each extension is its own npm workspace under `extensions/`,
-with its own `package.json`, `pi` manifest, and version, published on its own under
-`@arielsakin`. Shared internals live in the `lib/` workspace (`@arielsakin/pi-tva-lib`).
-The root `pi-tva-toolbox` is an umbrella package that bundles all the extensions.
-Versions move in lockstep via `npm run version:set`.
+This repository is a monorepo of pi extensions for session trees: branches, rewinds,
+and forks. Each extension is its own npm workspace under `extensions/`, with its own
+`package.json`, `pi` manifest, and version, published on its own under `@arielsakin`.
+Shared internals live in the `lib/` workspace (`@arielsakin/pi-tva-lib`). The root
+`pi-tva-toolbox` is an umbrella package that bundles all the extensions. Versions move
+in lockstep via `npm run version:set`.
 
 ## Rules for Agents Working Here
-1. **State Over Aspiration**: Describe what is currently implemented, not what is planned.
-2. **Companion Folder**: Drafts, notes, decision logs, and plans must be stored in the companion directory (`~/projects/oss/companions/pi-tva-toolbox`), out of the source tree.
-3. **OSS Context**: This is a public open-source project. Contributors and their agents operate in various environments; ensure no proprietary corporate context, internal paths, or private credentials from any operator's workplace leak into this repository. Use only the contributor's public name, email, and GitHub handle for attribution.
-4. **Working Product**: Every extension must remain loadable and functional via `/reload` at all times. Breakages must be reverted or fixed immediately.
-5. **README Table Is the Index**: The extensions table in the root `README.md` lists every extension in `extensions/`. When you add, remove, or rename an extension, update that table in the same change — it must never drift from what is on disk.
-
-
-## Version control (jj)
-
-This repo uses **Jujutsu (jj)**, colocated with git / GitHub. Agents must use jj for local history — not bare `git commit` / `git add`.
-
-- Prefer `jj describe` / `jj commit` (or the equivalent workflow already in use) for each finished slice.
-- Follow-up fixes and review edits are new changes on top of prior ones; do not rewrite history or force-push unless explicitly asked.
-- `git` remains present for remotes and tooling; jj is the authoring surface.
-- Do not push unless asked.
+1. **State over aspiration**: describe what is currently implemented, not what is planned.
+2. **Public project**: this is an open-source repository. Do not commit proprietary context, internal paths, or credentials from any operator's environment. Attribution uses only the contributor's public name, email, and GitHub handle.
+3. **Working product**: every extension must remain loadable via `/reload` at all times. Fix or revert a breakage in the same change.
+4. **README table is the index**: the extensions table in the root `README.md` lists every extension in `extensions/`. When you add, remove, or rename an extension, update that table in the same change.
+5. **Contribution workflow**: see `CONTRIBUTING.md`. Do not rewrite published history; do not push unless asked.

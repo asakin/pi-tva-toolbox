@@ -2,13 +2,7 @@ node_modules/
 dist/
 .env
 .DS_Store
-*.tfstate
-*.tfstate.*
-.terraform/
-.terraform.tfstate.lock.info
-tfplan
-*.tfplan
-node_modules
 logs/
-.gstack/
-pi-extensions.code-workspace
+.jj/
+*.code-workspace
+*.tgz

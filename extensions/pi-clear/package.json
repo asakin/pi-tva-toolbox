@@ -1,11 +1,14 @@
 {
   "name": "@arielsakin/pi-clear",
-  "version": "0.1.0",
-  "description": "Rewind a Pi session to before its first message as a new tree branch — /clear as the counter to /new",
+  "version": "1.0.0",
+  "description": "Rewind a pi session to before its first message as a new branch of the session tree: /clear as the counter to /new",
   "type": "module",
   "license": "Apache-2.0",
   "author": "Ariel Sakin",
   "private": false,
+  "engines": {
+    "node": ">=22.19.0"
+  },
   "publishConfig": {
     "access": "public"
   },
@@ -14,8 +17,8 @@
     "pi-extension",
     "pi",
     "session",
-    "fork",
-    "worktree"
+    "branch",
+    "rewind"
   ],
   "files": [
     "src",
@@ -34,10 +37,10 @@
     "test": "node --test"
   },
   "peerDependencies": {
-    "@earendil-works/pi-coding-agent": "*"
+    "@earendil-works/pi-coding-agent": ">=0.84.0"
   },
   "devDependencies": {
-    "@earendil-works/pi-coding-agent": "0.84.2",
+    "@earendil-works/pi-coding-agent": "0.84.3",
     "@types/node": "26.2.0",
     "typescript": "7.0.2"
   },

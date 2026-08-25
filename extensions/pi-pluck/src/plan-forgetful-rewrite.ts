@@ -14,18 +14,9 @@ export type PluckPlan =
 			skippedCount: number;
 			originalTurnCount: number;
 			keptTurnCount: number;
-			/** True when the first user turn matched and the whole session-head turn was kept. */
+			/** True when the first user turn matched and was kept whole anyway. */
 			rootProtected: boolean;
-			/**
-			 * Last shared kept ancestor id on the original path.
-			 * Bookkeeping only — grow clones the full kept chain as a parallel root/sibling;
-			 * it does not hang new nodes from this id.
-			 */
-			divergenceParentId: string;
-			/**
-			 * One short line per forgotten turn (for confirm UI).
-			 * Whole turns only — never a half-forgotten head assistant side.
-			 */
+			/** One short line per forgotten turn, for the confirm dialog. */
 			forgottenPreviews: string[];
 	  };
 
@@ -71,7 +62,7 @@ function contentToText(content: unknown): string {
 function entryMatchText(entry: SessionEntry): string {
 	if (entry.type !== "message") return "";
 	const msg = entry.message;
-	// Trap: tool *results* must never match — only user/assistant text and toolCall name+args.
+	// Tool results never match; only user/assistant text and tool-call name + args do.
 	if (msg.role === "toolResult") return "";
 	if (msg.role === "user") return contentToText(msg.content);
 	if (msg.role === "assistant") {
@@ -110,7 +101,7 @@ function turnMatches(turn: Turn, regex: RegExp): boolean {
 	return false;
 }
 
-/** Id of the very first user message on the path — the session head we never drop. */
+/** Id of the first user message on the path; its turn is never forgotten. */
 function findFirstUserId(turns: Turn[]): string | null {
 	for (const turn of turns) {
 		for (const entry of turn) {
@@ -123,23 +114,19 @@ function findFirstUserId(turns: Turn[]): string | null {
 }
 
 /**
- * Decide what a forgetful rewrite would look like — pure planning, no session writes.
+ * Decide which turns the overlay forgets. Pure; no session writes.
  *
- * - Keep turns that do not match; omit turns that do (whole turns only).
- * - If the first user turn matches, keep that entire turn (rootProtected) and forget
- *   only later matching turns. The overlay cannot drop half a turn, and dropping the
- *   session head would rewrite shared history or force a multi-root tree.
- * - Grow clones the full kept chain in parallel. divergenceParentId records the last
- *   shared kept ancestor on the original path (bookkeeping / debugging only).
- * - If the shared prefix with the original path is empty, the plan is not useful.
- * - If only the head matched, nothing is forgotten → not_useful.
+ * - Turns that match are forgotten whole; turns that do not are kept.
+ * - The first user turn is always kept (rootProtected), so the model still sees the
+ *   opening prompt; only later matching turns are forgotten.
+ * - Refuses when every turn (or every user turn) matches, when nothing would be
+ *   forgotten, or when the first turn would be forgotten.
  */
 export function planForgetfulRewrite(
 	turns: Turn[],
 	regex: RegExp,
 	regexStr: string,
 ): PluckPlan {
-	const path = turns.flat();
 	const firstUserId = findFirstUserId(turns);
 
 	const keptTurns: Turn[] = [];
@@ -157,9 +144,7 @@ export function planForgetfulRewrite(
 			? turn.findIndex((entry) => entry.id === firstUserId)
 			: -1;
 
-		// Session head must stay as a whole turn: the overlay is turn-granular, and
-		// dropping the head rewrites every other branch's history or forces a
-		// multi-root tree. Do not count it as forgotten.
+		// The first user turn is kept whole and not counted as forgotten.
 		if (userIdx >= 0 && !rootProtected) {
 			rootProtected = true;
 			keptTurns.push(turn);
@@ -170,17 +155,14 @@ export function planForgetfulRewrite(
 		forgottenPreviews.push(turnPreview(turn));
 	}
 
-	// .* / blanket patterns: every turn matched. Even with root-protect, that is a
-	// wipe of the conversation path — refuse instead of building a label-only stub.
+	// Every turn matched: refuse rather than forget the whole conversation.
 	if (skippedCount === turns.length) {
 		return { ok: false, reason: "catches_all", regexStr };
 	}
 
-	// Preamble (model_change, etc.) often has no matchable text, so it never
-	// "matches" — but if every user-led turn matched, the conversation is wiped
-	// (rootProtected would keep only the head turn). Refuse as catch-all.
-	// Checked before the skippedCount===0 exit so a sole matching head is
-	// catches_all, not not_useful.
+	// Preamble turns (model_change, etc.) have no matchable text, so also refuse when
+	// every user-led turn matched. Checked before the skippedCount === 0 exit so a
+	// sole matching head is catches_all, not not_useful.
 	const userTurns = turns.filter((turn) =>
 		turn.some(
 			(entry) =>
@@ -195,33 +177,18 @@ export function planForgetfulRewrite(
 	}
 
 	if (skippedCount === 0) {
-		// Head may have matched, but nothing was actually forgotten.
 		if (rootProtected) {
 			return { ok: false, reason: "not_useful", regexStr };
 		}
 		return { ok: false, reason: "no_match", regexStr };
 	}
 
-	// Shared prefix with the original path — recorded as divergenceParentId for
-	// bookkeeping. Grow still clones the entire kept chain in parallel.
-	const keptFlat = keptTurns.flat();
-	let sharedLen = 0;
-	while (
-		sharedLen < keptFlat.length &&
-		sharedLen < path.length &&
-		keptFlat[sharedLen]!.id === path[sharedLen]!.id
-	) {
-		sharedLen++;
-	}
-
-	// e.g. matching preamble-only before any user — nowhere legal to hang.
-	if (sharedLen === 0) {
+	// The first turn must survive; otherwise there is nothing sensible to keep.
+	if (keptTurns[0] !== turns[0]) {
 		return { ok: false, reason: "not_useful", regexStr };
 	}
 
-	const divergenceParentId = path[sharedLen - 1]!.id;
-
-	// "Keeps N" in confirm copy means turns after the protected head, not including it.
+	// "Keeps N" in the confirm copy counts turns after the protected head.
 	let keptTurnCount = keptTurns.length;
 	if (rootProtected) keptTurnCount = Math.max(0, keptTurnCount - 1);
 
@@ -233,7 +200,6 @@ export function planForgetfulRewrite(
 		originalTurnCount: turns.length,
 		keptTurnCount,
 		rootProtected,
-		divergenceParentId,
 		forgottenPreviews,
 	};
 }

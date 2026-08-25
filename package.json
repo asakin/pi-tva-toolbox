@@ -1,11 +1,14 @@
 {
   "name": "pi-tva-toolbox",
-  "version": "0.1.0",
-  "description": "Pi extensions for time travel, session trees, and forks",
+  "version": "1.0.0",
+  "description": "Session-tree tools for pi, the terminal coding agent",
   "author": "Ariel Sakin",
   "license": "Apache-2.0",
   "type": "module",
   "private": false,
+  "engines": {
+    "node": ">=22.19.0"
+  },
   "files": [
     "README.md",
     "LICENSE",
@@ -14,6 +17,7 @@
   "keywords": [
     "pi-package",
     "pi-extension",
+    "pi",
     "pi-coding-agent"
   ],
   "workspaces": [
@@ -25,42 +29,41 @@
       "node_modules/@arielsakin/pi-clear/src/index.ts",
       "node_modules/@arielsakin/pi-fork-off/src/index.ts",
       "node_modules/@arielsakin/pi-pluck/src/index.ts",
-      "node_modules/@arielsakin/pi-pruner/src/index.ts",
-      "node_modules/@arielsakin/pi-time-heist/src/index.ts",
-      "node_modules/@arielsakin/pi-version-sentinel/src/index.ts"
+      "node_modules/@arielsakin/pi-time-heist/src/index.ts"
     ]
   },
   "scripts": {
+    "prepublishOnly": "npm run check && npm test",
     "check": "npm run check --workspaces --if-present",
     "test": "node --test \"scripts/*.test.mjs\" && npm run test --workspaces --if-present",
     "version:set": "node scripts/set-version.mjs"
   },
   "dependencies": {
-    "@arielsakin/pi-clear": "0.1.0",
-    "@arielsakin/pi-fork-off": "0.1.0",
-    "@arielsakin/pi-pluck": "0.1.0",
-    "@arielsakin/pi-pruner": "0.1.0",
-    "@arielsakin/pi-time-heist": "0.1.0",
-    "@arielsakin/pi-version-sentinel": "0.1.0"
+    "@arielsakin/pi-clear": "1.0.0",
+    "@arielsakin/pi-fork-off": "1.0.0",
+    "@arielsakin/pi-pluck": "1.0.0",
+    "@arielsakin/pi-time-heist": "1.0.0"
   },
   "bundleDependencies": [
     "@arielsakin/pi-clear",
     "@arielsakin/pi-fork-off",
     "@arielsakin/pi-pluck",
-    "@arielsakin/pi-pruner",
-    "@arielsakin/pi-time-heist",
-    "@arielsakin/pi-version-sentinel"
+    "@arielsakin/pi-time-heist"
   ],
   "peerDependencies": {
-    "@earendil-works/pi-coding-agent": "*"
+    "@earendil-works/pi-coding-agent": ">=0.84.0"
   },
   "devDependencies": {
-    "@earendil-works/pi-coding-agent": "0.84.2",
+    "@earendil-works/pi-coding-agent": "0.84.3",
     "@types/node": "26.2.0",
     "typescript": "7.0.2"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/asakin/pi-tva-toolbox.git"
-  }
+  },
+  "bugs": {
+    "url": "https://github.com/asakin/pi-tva-toolbox/issues"
+  },
+  "homepage": "https://github.com/asakin/pi-tva-toolbox#readme"
 }

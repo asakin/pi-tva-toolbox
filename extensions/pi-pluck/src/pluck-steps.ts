@@ -12,7 +12,7 @@ import { formatPattern } from "./format-pattern.ts";
 // Re-export so the handler and tests can import the public steps from one place.
 export type { PluckPlan };
 export { planForgetfulRewrite };
-/** Confirm-dialog body — plain copy for a yes/no decision. */
+/** Confirm-dialog body. */
 export { buildConfirmMessage } from "./build-confirm-message.ts";
 /** Display /pattern/i with escaped slashes. */
 export { formatPattern } from "./format-pattern.ts";
@@ -45,7 +45,7 @@ export function validateRegex(regexStr: string): RegExp {
 export function splitPathIntoTurns(ctx: ExtensionCommandContext): Turn[] {
 	const path = ctx.sessionManager.getBranch();
 	if (path.length === 0) {
-		throw new Error("pluck: this session has no entries yet.");
+		throw new Error("this session has no entries yet.");
 	}
 
 	const turns: Turn[] = [];
@@ -73,12 +73,8 @@ export function buildLabelText(
 
 /**
  * The turns the plan forgets, keyed the way `shape()` matches them: the user
- * message's millisecond timestamp (entryId is for listings only).
- *
- * A turn is forgotten when it is not in `plan.keptTurns` (compared by first
- * entry id). For a rootProtected head the plan keeps the whole turn, so it is
- * present in keptTurns and nothing is forgotten for it — overlays are
- * turn-granular and never drop half a turn.
+ * message's millisecond timestamp (entryId is for listings only). A turn is
+ * forgotten when it is not in `plan.keptTurns`, compared by first entry id.
  */
 export function buildForgottenTurns(
 	turns: Turn[],
@@ -99,7 +95,7 @@ export function buildForgottenTurns(
 		const ts = user.message.timestamp;
 		if (typeof ts !== "number") {
 			throw new Error(
-				`pluck: user message ${user.id} has no numeric timestamp; cannot key the turn`,
+				`user message ${user.id} has no numeric timestamp; cannot key the turn`,
 			);
 		}
 		forgotten.push({ ts, entryId: user.id });
@@ -121,15 +117,9 @@ export function buildOverlayNote(
 	};
 }
 
-/**
- * Build the success summary string. The handler notifies with it.
- * Keep it human: label + counts + how to undo — no raw entry ids.
- */
+/** Success notify: label, counts, how to undo. No entry ids. */
 export function buildSummaryMessage(plan: OkPlan, labelText: string): string {
-	return (
-		`Forgot ${plan.skippedCount} of ${plan.originalTurnCount} turn(s) under label "${labelText}".` +
-		` Nothing was cloned; the turns stay in the session file and /unpluck restores them.`
-	);
+	return `Forgot ${plan.skippedCount} of ${plan.originalTurnCount} turn(s) under "${labelText}". /unpluck restores them.`;
 }
 
 /** One selectable row for /unpluck: position (labels can repeat), label, turn count. */

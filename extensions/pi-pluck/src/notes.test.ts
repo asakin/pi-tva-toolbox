@@ -94,9 +94,9 @@ describe("collectForgotten", () => {
 		assert.deepEqual(sorted(set), [100]);
 	});
 
-	test("legacy trunk-anchor, other custom types and malformed data are ignored", () => {
+	test("unknown kinds, other custom types and malformed data are ignored", () => {
 		const set = collectForgotten([
-			custom("l1", { kind: "trunk-anchor", anchorId: "x" }),
+			custom("l1", { kind: "unknown", anchorId: "x" }),
 			custom("o1", overlay(999), "other-extension"),
 			custom("m1", null),
 			custom("m2", "overlay"),
@@ -118,7 +118,7 @@ describe("listOverlayNotes", () => {
 		const out = listOverlayNotes([
 			custom("c0", cancel("n2")), // earlier than n2: does not cancel it
 			custom("n1", n1),
-			custom("l1", { kind: "trunk-anchor" }),
+			custom("l1", { kind: "unknown" }),
 			custom("n2", n2),
 			custom("c1", cancel("n1")),
 		]);

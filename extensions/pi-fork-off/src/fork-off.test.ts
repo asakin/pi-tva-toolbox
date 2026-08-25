@@ -3,17 +3,13 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { SessionManager, type SessionEntry } from "@earendil-works/pi-coding-agent";
-import { forkOff, parseSlugs } from "./index.ts";
+import { SessionManager, type ExtensionAPI, type ExtensionCommandContext, type SessionEntry } from "@earendil-works/pi-coding-agent";
+import registerForkOff, { forkOff, parseSlugs } from "./index.ts";
 
 /**
- * Where Pi puts the leaf when you select an entry in `/tree`.
- *
- * Mirrors `AgentSession.navigateTree()`: a user message or a `custom_message` is treated
- * as "rewind to before this and let me retype it", so the leaf becomes the selected
- * entry's parent; anything else is a landing spot and the leaf becomes the entry itself.
- * Kept here as the executable statement of the rule this extension is built around — the
- * original bug was a shape that ignored it.
+ * Where pi puts the leaf when an entry is selected in /tree (mirrors
+ * `AgentSession.navigateTree()`): a user message or `custom_message` moves the leaf to
+ * its parent; anything else becomes the leaf itself.
  */
 function leafAfterNavigatingTo(entry: SessionEntry): string | null | undefined {
   if (entry.type === "message" && entry.message.role === "user") return entry.parentId;
@@ -21,14 +17,20 @@ function leafAfterNavigatingTo(entry: SessionEntry): string | null | undefined {
   return entry.id;
 }
 
+async function withSessionAsync(run: (sm: SessionManager, baseId: string) => Promise<void>): Promise<void> {
+  let pending: Promise<void> | undefined;
+  withSession((sm, baseId) => {
+    pending = run(sm, baseId);
+  });
+  await pending;
+}
+
 function withSession(run: (sm: SessionManager, baseId: string, dir: string) => void): void {
   const dir = mkdtempSync(join(tmpdir(), "fork-off-test-"));
   try {
     const sm = SessionManager.create(dir, dir);
     sm.appendMessage({ role: "user", content: "set up the project", timestamp: 0 });
-    // Pi keeps a session in memory until it holds an assistant message
-    // (`SessionManager._persist()`), so the reply is what makes the file exist — without
-    // it the resume test would be checking an unwritten file.
+    // pi writes the session file only once it holds an assistant message.
     sm.appendMessage({
       role: "assistant",
       content: [{ type: "text", text: "done" }],
@@ -69,6 +71,18 @@ test("parseSlugs: rejects empty input, zero, and over-max", () => {
   assert.ok("error" in parseSlugs(new Array(21).fill("x").join(" ")));
 });
 
+test("parseSlugs: rejects duplicate slugs", () => {
+  const result = parseSlugs("a b a");
+  assert.ok("error" in result);
+  assert.match(result.error, /Duplicate slug "a"/);
+});
+
+test("SessionManager still has the four methods forkOff reaches through writable()", () => {
+  for (const method of ["branch", "appendCustomMessageEntry", "appendLabelChange", "appendCustomEntry"]) {
+    assert.equal(typeof (SessionManager.prototype as unknown as Record<string, unknown>)[method], "function", method);
+  }
+});
+
 test("every branch forks from the base as a sibling", () => {
   withSession((sm, baseId) => {
     const { branches } = forkOff(sm, baseId, ["a", "b", "c"], new Date(0));
@@ -97,7 +111,7 @@ test("the labeled marker sits below the head and carries the slug", () => {
   });
 });
 
-test("REGRESSION: selecting a branch in /tree lands inside that branch, not on the base", () => {
+test("selecting a branch in /tree lands inside that branch, not on the base", () => {
   withSession((sm, baseId) => {
     const { branches } = forkOff(sm, baseId, ["a", "b"], new Date(0));
 
@@ -134,11 +148,11 @@ test("the in-memory leaf is left on the base", () => {
     const leaf = sm.getLeafId();
     assert.ok(leaf);
     const path = sm.getBranch(leaf).map((e) => e.id);
-    assert.ok(path.includes(baseId), "leaf is on the trunk");
+    assert.ok(path.includes(baseId), "leaf is on the base");
   });
 });
 
-test("REGRESSION: resuming the session returns to the trunk, not the last branch", () => {
+test("resuming the session returns to the base, not the last branch", () => {
   withSession((sm, baseId, dir) => {
     const { branches } = forkOff(sm, baseId, ["a", "b", "c"], new Date(0));
     const file = sm.getSessionFile();
@@ -150,9 +164,66 @@ test("REGRESSION: resuming the session returns to the trunk, not the last branch
     assert.ok(leaf);
 
     const path = reopened.getBranch(leaf).map((e) => e.id);
-    assert.ok(path.includes(baseId), "resumed position is on the trunk");
+    assert.ok(path.includes(baseId), "resumed position is on the base");
     for (const branch of branches) {
       assert.ok(!path.includes(branch.headId), `resume must not land inside branch ${branch.slug}`);
     }
   });
+});
+
+type Handler = (args: string, ctx: ExtensionCommandContext) => Promise<void>;
+
+function handlerWith(sm: SessionManager, hasUI = true) {
+  const notices: Array<{ text: string; level: string }> = [];
+  const handlers = new Map<string, Handler>();
+  registerForkOff({
+    registerCommand: (name: string, spec: { handler: Handler }) => handlers.set(name, spec.handler),
+  } as unknown as ExtensionAPI);
+  const handler = handlers.get("fork-off");
+  assert.ok(handler, "registers /fork-off");
+  const ctx = {
+    sessionManager: sm,
+    hasUI,
+    ui: { notify: (text: string, level: string) => notices.push({ text, level }) },
+  } as unknown as ExtensionCommandContext;
+  return { run: (args: string) => handler(args, ctx), notices };
+}
+
+test("/fork-off: creates the branches and reports the count", async () => {
+  await withSessionAsync(async (sm, baseId) => {
+    const { run, notices } = handlerWith(sm);
+    await run("redis in-memory");
+    assert.deepEqual(notices, [{ text: "Forked off 2 branches. Use /tree to walk into them.", level: "info" }]);
+    const heads = sm.getEntries().filter((e) => e.parentId === baseId && e.type === "custom_message");
+    assert.equal(heads.length, 2);
+    assert.ok(sm.getBranch(sm.getLeafId() ?? undefined).some((e) => e.id === baseId), "leaf stays on the base");
+  });
+});
+
+test("/fork-off: bad arguments and an empty session are reported as errors", async () => {
+  await withSessionAsync(async (sm) => {
+    const { run, notices } = handlerWith(sm);
+    await run("");
+    await run("a a");
+    assert.deepEqual(notices.map((n) => n.level), ["error", "error"]);
+  });
+  const empty = SessionManager.inMemory();
+  const { run, notices } = handlerWith(empty);
+  await run("2");
+  assert.equal(notices[0]?.level, "error");
+  assert.match(notices[0]?.text ?? "", /empty session/);
+});
+
+test("/fork-off: without a UI an error also reaches stderr", async () => {
+  const original = console.error;
+  const lines: string[] = [];
+  console.error = (line: string) => lines.push(line);
+  try {
+    const { run } = handlerWith(SessionManager.inMemory(), false);
+    await run("");
+    assert.equal(lines.length, 1);
+    assert.match(lines[0] ?? "", /Usage/);
+  } finally {
+    console.error = original;
+  }
 });

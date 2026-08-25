@@ -1,5 +1,5 @@
 import { SessionManager } from "@earendil-works/pi-coding-agent";
-import type { ExtensionAPI, SessionEntry } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext, SessionEntry } from "@earendil-works/pi-coding-agent";
 import path from "node:path";
 import os from "node:os";
 import fs from "node:fs/promises";
@@ -8,7 +8,7 @@ import { createLogger } from "@arielsakin/pi-tva-lib";
 const logDebug = createLogger("HEIST");
 
 // Browser menu entries.
-const GRAFT_HERE = "[ graft here ]";
+const FORK_HERE = "[ fork here ]";
 const GO_HOME = "~/";
 const GO_UP = "../";
 
@@ -30,8 +30,8 @@ export function displayPath(dir: string): string {
   return inHome ? "~" + dir.slice(home.length) : dir;
 }
 
-// Locked by the fork hook, spent by /heist. Module state survives the gap
-// because cancelling the native fork means nothing is ever torn down.
+// Set by the fork hook, consumed by /heist. Module state carries it across
+// the gap because cancelling the native fork tears nothing down.
 type PendingHeist = {
   targetDir: string;
   entryId: string;
@@ -40,11 +40,10 @@ type PendingHeist = {
 };
 let pendingHeist: PendingHeist | null = null;
 
+// Visible subdirectories only, sorted, with a trailing slash for the menu.
 export async function getSubdirectories(currentPath: string): Promise<string[]> {
   try {
     const entries = await fs.readdir(currentPath, { withFileTypes: true });
-
-    // Filter to directories that don't start with a dot
     const dirs = entries
       .filter((e) => e.isDirectory() && !e.name.startsWith("."))
       .map((e) => e.name + "/");
@@ -54,8 +53,8 @@ export async function getSubdirectories(currentPath: string): Promise<string[]> 
   }
 }
 
-// "at" keeps the selected message, "before" starts from its parent --
-// matching what Pi's own fork does with event.position. Root-first order.
+// "at" keeps the selected message, "before" starts from its parent, matching
+// what pi's own fork does with event.position. Root-first order.
 export function reconstructBranch(
   entries: SessionEntry[],
   selected: SessionEntry,
@@ -67,81 +66,82 @@ export function reconstructBranch(
   while (currentId) {
     const entry = parentMap.get(currentId);
     if (!entry) break;
-    branchEntries.unshift(entry); // Add to front for chronological order
+    branchEntries.unshift(entry);
     currentId = entry.parentId;
   }
   return branchEntries;
 }
 
+// Session store for the target cwd. With pi's default store, pi encodes the
+// target cwd itself; with a custom --session-dir, the new session stays in
+// that directory, as pi's own /new does. The read-only context type omits
+// usesDefaultSessionDir, but the runtime object is pi's SessionManager.
+export function targetSessionDir(sessionManager: ExtensionContext["sessionManager"]): string | undefined {
+  const probe = sessionManager as Partial<Pick<SessionManager, "usesDefaultSessionDir">>;
+  const usesDefault = typeof probe.usesDefaultSessionDir === "function" ? probe.usesDefaultSessionDir() : true;
+  return usesDefault ? undefined : sessionManager.getSessionDir();
+}
+
 export default function (pi: ExtensionAPI) {
-  // Hook into the native fork process BEFORE it executes
   pi.on("session_before_fork", async (event, ctx) => {
+    if (!ctx.hasUI) return;
+
     const home = os.homedir();
     let currentDir = ctx.cwd;
-    let absoluteTargetDir: string | undefined;
+    let targetDir: string | undefined;
 
-    logDebug(`\n=== T.V.A. Time Heist Initiated ===`);
-    logDebug(`[Step 0] Forking ${event.position} entry ${event.entryId} in ${ctx.cwd}`);
+    logDebug("=== fork to another directory ===");
+    logDebug(`fork ${event.position} entry ${event.entryId} in ${ctx.cwd}`);
 
-    // 1. Interactive Directory Browser
     while (true) {
       const dirs = await getSubdirectories(currentDir);
+      const choices = [FORK_HERE, GO_HOME, GO_UP, ...dirs];
+      const selection = await ctx.ui.select(`Fork into: ${displayPath(currentDir)}`, choices);
 
-      const choices = [GRAFT_HERE, GO_HOME, GO_UP, ...dirs];
-      const selection = await ctx.ui.select(`Time Heist - target: ${displayPath(currentDir)}`, choices);
-
-      // User hit escape or cancelled
       if (!selection) {
-        logDebug(`[Step 1] Aborted at ${currentDir}`);
-        ctx.ui.notify("Heist aborted.", "warning");
+        logDebug(`cancelled at ${currentDir}`);
+        ctx.ui.notify("Fork cancelled.", "warning");
         return { cancel: true };
       }
 
-      if (selection === GRAFT_HERE) {
-        absoluteTargetDir = currentDir;
+      if (selection === FORK_HERE) {
+        targetDir = currentDir;
         break;
       } else if (selection === GO_UP) {
         currentDir = path.dirname(currentDir);
       } else if (selection === GO_HOME) {
         currentDir = home;
       } else {
-        // Navigating into a subdirectory
         currentDir = path.join(currentDir, selection.replace("/", ""));
       }
     }
 
-    // 2. Delegate to Native Fork
-    // Same directory means there is nothing to move, so let Pi fork in place.
-    if (absoluteTargetDir === ctx.cwd) {
-      logDebug(`[Step 1] Same directory, deferring to native fork.`);
+    // Same directory: nothing to move, so pi forks in place.
+    if (targetDir === ctx.cwd) {
+      logDebug("same directory, deferring to native fork");
       return;
     }
 
-    // 3. Lock the trajectory and hand off to /heist.
-    // The switch itself needs switchSession, which only exists on a command
-    // context -- so the hook captures what only it can see (entryId, position)
-    // and the command spends it.
+    // switchSession only exists on a command context, so the hook records what
+    // only it can see (entryId, position) and /heist performs the switch.
     pendingHeist = {
-      targetDir: absoluteTargetDir,
+      targetDir,
       entryId: event.entryId,
       position: event.position,
       sessionId: ctx.sessionManager.getSessionId(),
     };
-    logDebug(`[Step 1] Locked target ${absoluteTargetDir}`);
+    logDebug(`target ${targetDir}`);
 
-    ctx.ui.notify(
-      `Heist trajectory locked → ${displayPath(absoluteTargetDir)}\nType /heist to initiate the jump.`,
-      "info"
-    );
+    ctx.ui.notify(`Target: ${displayPath(targetDir)}. Run /heist to fork there.`, "info");
 
     return { cancel: true };
   });
 
   pi.registerCommand("heist", {
-    description: "Complete a locked Time Heist: graft this branch into the target directory",
+    description: "Fork the pending branch into the chosen directory",
     handler: async (args, ctx) => {
       if (!pendingHeist) {
-        ctx.ui.notify("No heist pending. Fork to a different directory first.", "warning");
+        ctx.ui.notify("No fork pending. Fork to a different directory first.", "warning");
         return;
       }
 
@@ -150,63 +150,54 @@ export default function (pi: ExtensionAPI) {
       // The entry ids only mean anything in the session that produced them.
       if (heist.sessionId !== ctx.sessionManager.getSessionId()) {
         pendingHeist = null;
-        logDebug(`[Abort] Heist locked in session ${heist.sessionId}, now in ${ctx.sessionManager.getSessionId()}`);
-        ctx.ui.notify("Pending heist belongs to a different session. Discarded.", "warning");
+        logDebug(`discarded: target set in session ${heist.sessionId}, now in ${ctx.sessionManager.getSessionId()}`);
+        ctx.ui.notify("Pending fork belongs to a different session. Discarded.", "warning");
         return;
       }
 
-      logDebug(`[Step 2] Executing heist to ${heist.targetDir}`);
+      logDebug(`forking into ${heist.targetDir}`);
 
       try {
-        // Pi refuses to open a session whose cwd is missing.
-        await fs.mkdir(heist.targetDir, { recursive: true });
+        // The browser only offers existing directories and nothing is created
+        // inside the target; it may have been removed since it was chosen.
+        await fs.access(heist.targetDir).catch(() => {
+          throw new Error(`Target directory no longer exists: ${heist.targetDir}`);
+        });
 
         const selected = ctx.sessionManager.getEntry(heist.entryId);
         if (!selected) {
           throw new Error(`Entry ${heist.entryId} is no longer in this session.`);
         }
 
-        const branchEntries = reconstructBranch(
-          ctx.sessionManager.getEntries(),
-          selected,
-          heist.position
-        );
-        logDebug(`[Step 3] Reconstructed branch history: ${branchEntries.length} entries`);
+        const branchEntries = reconstructBranch(ctx.sessionManager.getEntries(), selected, heist.position);
+        logDebug(`branch: ${branchEntries.length} entries`);
 
         // SessionManager.create takes the cwd first, so the header carries the
         // target directory. That header is the only way the destination cwd
         // reaches switchSession, which does not accept a cwd override.
-        // sessionDir is explicit because the default resolves against the
-        // process agent dir, wrong if pi booted with a relocated one.
-        const targetSessionDir = path.join(
-          path.dirname(ctx.sessionManager.getSessionDir()),
-          `--${heist.targetDir.replace(/^[/\\]/, "").replace(/[/\\:]/g, "-")}--`
-        );
-        const targetManager = SessionManager.create(heist.targetDir, targetSessionDir, {
+        const targetManager = SessionManager.create(heist.targetDir, targetSessionDir(ctx.sessionManager), {
           parentSession: ctx.sessionManager.getSessionFile(),
         });
 
         const targetSessionFile = targetManager.getSessionFile()!;
         const header = targetManager.getHeader()!;
-        logDebug(`[Step 4] Created shell session ${header.id} at ${targetSessionFile}`);
+        logDebug(`new session ${header.id} at ${targetSessionFile}`);
 
         // Written directly rather than through appendMessage, which would re-id
         // every entry and break the parent chain.
         const splicedLines = [header, ...branchEntries].map((e) => JSON.stringify(e));
         await fs.writeFile(targetSessionFile, splicedLines.join("\n") + "\n", "utf-8");
-        logDebug(`[Step 5] Wrote header + ${branchEntries.length} entries`);
+        logDebug(`wrote header + ${branchEntries.length} entries`);
 
-        // Cleared before the switch: on the far side this context is dead, and a
-        // failed jump should not leave entry ids from a session we may have left.
+        // Cleared before the switch: on the far side this context is gone, and
+        // a failed switch should not keep entry ids from a session we may have left.
         pendingHeist = null;
 
         // Forking "before" a message leaves it out of the branch, so hand its
-        // text back in the editor the way Pi's native fork does. "at" keeps the
+        // text back in the editor the way pi's native fork does. "at" keeps the
         // message, so there is nothing to hand back.
         const selectedText =
-          heist.position === "before" &&
-          selected.type === "message" &&
-          selected.message.role === "user"
+          heist.position === "before" && selected.type === "message" && selected.message.role === "user"
             ? userMessageText(selected.message.content)
             : undefined;
 
@@ -216,21 +207,18 @@ export default function (pi: ExtensionAPI) {
           withSession: async (nextCtx) => {
             // The editor belongs to the new session, so prefill on this side.
             if (selectedText) nextCtx.ui.setEditorText(selectedText);
-            nextCtx.ui.notify(
-              `Branch history grafted into ${displayPath(heist.targetDir)}`,
-              "info"
-            );
+            nextCtx.ui.notify(`Forked into ${displayPath(heist.targetDir)}`, "info");
           },
         });
-        logDebug(`[Step 6] switchSession cancelled=${result.cancelled}`);
+        logDebug(`switchSession cancelled=${result.cancelled}`);
 
         if (result.cancelled) {
-          ctx.ui.notify("Heist switch was cancelled.", "warning");
+          ctx.ui.notify("Session switch was cancelled.", "warning");
         }
       } catch (error: any) {
         pendingHeist = null;
-        logDebug(`[ERROR] Heist failed: ${error.message}\n${error.stack}`);
-        ctx.ui.notify(`Heist failed: ${error.message}`, "error");
+        logDebug(`fork failed: ${error.message}\n${error.stack}`);
+        ctx.ui.notify(`Fork failed: ${error.message}`, "error");
       }
     },
   });

@@ -15,9 +15,7 @@ branches, and checking the dependency versions written along the way.
 | [pi-time-heist](extensions/pi-time-heist) | fork, then `/heist` | Fork a session from any point in its tree into a *different* working directory |
 | [pi-fork-off](extensions/pi-fork-off) | `/fork-off` | Fork one point into several labeled branches, to explore in parallel |
 | [pi-pluck](extensions/pi-pluck) | `/pluck` | Grow a labeled side-branch that forgets every turn matching a regex, leaving the trunk intact |
-| [pi-pruner](extensions/pi-pruner) | `/prune` | Prune branches labeled `TVA-PRUNE` (and their descendants) from the session tree |
 | [pi-clear](extensions/pi-clear) | `/clear` | Rewind the session to its first user message as a new branch |
-| [pi-version-sentinel](extensions/pi-version-sentinel) | automatic | Catch a stale dependency version before it's written — a memory-refresh for autonomous agents |
 
 ## Install
 
@@ -33,9 +31,7 @@ Or any extension on its own — each is published separately under `@arielsakin`
 pi install npm:@arielsakin/pi-time-heist
 pi install npm:@arielsakin/pi-fork-off
 pi install npm:@arielsakin/pi-pluck
-pi install npm:@arielsakin/pi-pruner
 pi install npm:@arielsakin/pi-clear
-pi install npm:@arielsakin/pi-version-sentinel
 ```
 
 Or straight from git (the toolbox):

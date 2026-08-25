@@ -23,20 +23,15 @@ export function buildConfirmMessage(
 		);
 		lines.push("");
 		lines.push(
-			"Warning: first user prompt matched but is kept.",
+			"Warning: first user prompt matched but the whole head turn is kept.",
 		);
 		const keptPrompt = headUserPreview(plan);
 		if (keptPrompt) {
 			lines.push(`Keeping: ${keptPrompt}`);
 		}
 		lines.push(
-			"Forgetting from that turn: first assistant reply (and its tools).",
+			`Forgetting ${plan.skippedCount} later matching turn(s).`,
 		);
-		if (plan.skippedCount > 1) {
-			lines.push(
-				`Also forgetting ${plan.skippedCount - 1} other matching turn(s).`,
-			);
-		}
 	} else {
 		lines.push(
 			`Will forget ${plan.skippedCount} of ${plan.originalTurnCount} turn(s) on the active branch.`,

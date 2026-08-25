@@ -1,34 +1,23 @@
 # pi-clear
 
-`/clear` as the counter to `/new`, the way `/tree` is the counter to `/fork`.
-
-Claude's `/clear` wipes your context and strands the old conversation in a
-saved file. Pi already has `/new` for that. This `/clear` rewinds the
-**current** session tree to before its first user message and grows a new
-branch from there:
-
-- The context is genuinely cleared — the agent wakes up at the beginning.
-- The old timeline stays in the tree, one `/tree` jump away.
-- The first user message — the session's seed prompt — is always labeled
-  `⌛ clear HH:MM`, marking when the jump happened. The new branch re-sends
-  the same prompt, so the marker belongs to the event more than to either
-  side.
-- The first message's text is handed back in the editor, because a session's
-  first prompt is usually its intent. Re-send it as-is, edit it into the new
-  branch's seed, or clear it and type something else.
-
-No summarization, no residue — a clear clear. (If you want a summary
-checkpoint before jumping, that's what `/tree` navigation with summarize is
-for; this command deliberately stays the fast path.)
+`/clear` rewinds the current branch of a [pi](https://pi.dev) session to before its
+first user message and starts a new branch there. The context is cleared; the old
+branch stays in `/tree`.
 
 ## Install
 
 ```bash
-pi install git:github.com/asakin/pi-tva-toolbox@main --extension @arielsakin/pi-clear
+pi install npm:@arielsakin/pi-clear
 ```
 
-Or from the monorepo checkout, symlink `src/index.ts` into
-`~/.pi/agent/extensions/`.
+Try it without installing:
+
+```bash
+pi -e npm:@arielsakin/pi-clear
+```
+
+Or the whole set: `pi install npm:pi-tva-toolbox`. For a local checkout, see the
+[root README](https://github.com/asakin/pi-tva-toolbox#readme).
 
 ## Usage
 
@@ -36,7 +25,23 @@ Or from the monorepo checkout, symlink `src/index.ts` into
 /clear
 ```
 
-From any point in a session. Works on any branch of the tree; the rewind
-targets the first user message of the branch you're on.
+From any point in a session. Works on any branch of the tree; the rewind targets the
+first user message of the branch you are on.
 
-Part of the [pi-tva-toolbox](../..) — timeline tools for Pi.
+- The context is cleared: the next message starts a fresh conversation.
+- The old branch stays in the tree, one `/tree` jump away.
+- The first user message of the branch is labeled `⌛ clear HH:MM`, marking when the
+  clear happened. Repeated clears update the same label.
+- The editor is left empty; the seed prompt stays labeled in `/tree`.
+- No summary is written. For a summary checkpoint, use `/tree` navigation with
+  summarize instead.
+
+Pi's `/new` starts a separate session file; `/clear` stays in the current one. If a
+future pi ships a built-in `/clear`, this command is reachable as `/clear:1` and pi
+reports the collision at startup.
+
+Part of [pi-tva-toolbox](https://github.com/asakin/pi-tva-toolbox): session-tree tools for pi.
+
+## License
+
+Apache 2.0

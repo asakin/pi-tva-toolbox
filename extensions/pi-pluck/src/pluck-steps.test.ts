@@ -169,16 +169,26 @@ describe("planForgetfulRewrite", () => {
 		assert.deepStrictEqual(plan.forgottenPreviews, ["talk about banana"]);
 	});
 
-	test("never drops the session head; flags rootProtected when first turn matches", () => {
+	test("keeps the whole session-head turn when it matches; only later matches are forgotten", () => {
 		const turns = turnsFromBranch(sampleBranch());
-		const plan = planForgetfulRewrite(turns, /hello/i, "hello");
+		const plan = planForgetfulRewrite(turns, /hello|banana/i, "hello|banana");
 		assert.strictEqual(plan.ok, true);
 		if (!plan.ok) return;
 		assert.strictEqual(plan.rootProtected, true);
+		assert.strictEqual(plan.skippedCount, 1);
 		assert.strictEqual(plan.keptTurns[0]!.some((e) => e.id === "u1"), true);
-		assert.strictEqual(plan.keptTurns[0]!.some((e) => e.id === "a1"), false);
-		// Preview the forgotten assistant side — not the kept session-head prompt.
-		assert.deepStrictEqual(plan.forgottenPreviews, ["hi"]);
+		assert.strictEqual(plan.keptTurns[0]!.some((e) => e.id === "a1"), true);
+		assert.deepStrictEqual(plan.forgottenPreviews, ["talk about banana"]);
+	});
+
+	test("refuses when only the session head matches (nothing to forget)", () => {
+		const turns = turnsFromBranch(sampleBranch());
+		const plan = planForgetfulRewrite(turns, /hello/i, "hello");
+		assert.deepStrictEqual(plan, {
+			ok: false,
+			reason: "not_useful",
+			regexStr: "hello",
+		});
 	});
 
 	test("does not match tool results", () => {
@@ -264,14 +274,15 @@ describe("buildConfirmMessage", () => {
 			okPlan({
 				rootProtected: true,
 				skippedCount: 1,
-				forgottenPreviews: ["hi"],
-				keptTurnCount: 2,
+				forgottenPreviews: ["talk about banana"],
+				keptTurnCount: 1,
 			}),
 		);
 		assert.match(message, /session head|first user|prompt/i);
 		assert.match(message, /kept|Keeping/i);
 		assert.match(message, /Turns to forget:/i);
-		assert.match(message, /\bhi\b/);
+		assert.match(message, /talk about banana/);
+		assert.doesNotMatch(message, /first assistant reply/i);
 	});
 
 	test("escapes slashes in the displayed pattern", () => {
@@ -318,13 +329,21 @@ describe("buildForgottenTurns / buildOverlayNote", () => {
 		assert.strictEqual(typeof forgotten[0]!.ts, "number");
 	});
 
-	test("forgets nothing for a rootProtected head — the plan keeps that turn's prompt", () => {
-		const turns = turnsFromBranch(sampleBranch());
-		const plan = planForgetfulRewrite(turns, /hello/i, "hello");
+	test("forgets nothing for a rootProtected head — the plan keeps that whole turn", () => {
+		const branch = sampleBranch();
+		const turns = turnsFromBranch(branch);
+		const plan = planForgetfulRewrite(turns, /hello|banana/i, "hello|banana");
 		assert.strictEqual(plan.ok, true);
 		if (!plan.ok) return;
 		assert.strictEqual(plan.rootProtected, true);
-		assert.deepStrictEqual(buildForgottenTurns(turns, plan), []);
+		const u2 = branch[2]!;
+		assert.strictEqual(u2.id, "u2");
+		assert.deepStrictEqual(buildForgottenTurns(turns, plan), [
+			{
+				ts: (u2 as { message: { timestamp: number } }).message.timestamp,
+				entryId: "u2",
+			},
+		]);
 	});
 
 	test("forgets several turns in path order, skipping a leading preamble turn", () => {

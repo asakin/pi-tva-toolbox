@@ -76,9 +76,9 @@ export function buildLabelText(
  * message's millisecond timestamp (entryId is for listings only).
  *
  * A turn is forgotten when it is not in `plan.keptTurns` (compared by first
- * entry id). For a rootProtected head the plan keeps the prompt as a sliced
- * turn, so it is present in keptTurns and nothing is forgotten for it — the
- * overlay cannot drop half a turn, and mirroring the plan keeps the head safe.
+ * entry id). For a rootProtected head the plan keeps the whole turn, so it is
+ * present in keptTurns and nothing is forgotten for it — overlays are
+ * turn-granular and never drop half a turn.
  */
 export function buildForgottenTurns(
 	turns: Turn[],

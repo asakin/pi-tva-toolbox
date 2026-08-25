@@ -1,0 +1,9 @@
+{
+  "name": "pi-tva-toolbox",
+  "mode": "vendored",
+  "agents": [
+    "claude-code",
+    "cursor"
+  ],
+  "dependencies": {}
+}

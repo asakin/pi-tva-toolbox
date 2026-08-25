@@ -14,3 +14,7 @@ in lockstep via `npm run version:set`.
 3. **Working product**: every extension must remain loadable via `/reload` at all times. Fix or revert a breakage in the same change.
 4. **README table is the index**: the extensions table in the root `README.md` lists every extension in `extensions/`. When you add, remove, or rename an extension, update that table in the same change.
 5. **Contribution workflow**: see `CONTRIBUTING.md`. Do not rewrite published history; do not push unless asked.
+
+# Agent Rules <!-- tessl-managed -->
+
+@.tessl/RULES.md follow the [instructions](.tessl/RULES.md)

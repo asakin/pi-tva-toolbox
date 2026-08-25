@@ -5,11 +5,13 @@ import type {
 	SessionEntry,
 } from "@earendil-works/pi-coding-agent";
 import {
+	buildCancelNote,
 	buildConfirmMessage,
 	buildForgottenTurns,
 	buildLabelText,
 	buildOverlayNote,
 	buildSummaryMessage,
+	formatUnpluckOption,
 	planForgetfulRewrite,
 	splitPathIntoTurns,
 	type PluckPlan,
@@ -376,5 +378,34 @@ describe("buildForgottenTurns / buildOverlayNote", () => {
 		assert.strictEqual(note.regexStr, "banana");
 		assert.strictEqual(note.labelText, "plucked 1/3 /banana/i 12:00");
 		assert.deepStrictEqual(note.forgotten.map((f) => f.entryId), ["u2"]);
+	});
+});
+
+describe("unpluck helpers", () => {
+	test("formatUnpluckOption shows the label and the turn count", () => {
+		const one = formatUnpluckOption({
+			kind: "overlay",
+			regexStr: "banana",
+			labelText: "plucked 1/3 /banana/i 12:00",
+			forgotten: [{ ts: T0, entryId: "u2" }],
+		});
+		assert.strictEqual(one, "plucked 1/3 /banana/i 12:00 — 1 turn");
+		const two = formatUnpluckOption({
+			kind: "overlay",
+			regexStr: "x",
+			labelText: "plucked 2/5 /x/i 13:00",
+			forgotten: [
+				{ ts: T0, entryId: "u2" },
+				{ ts: T0 + 1, entryId: "u4" },
+			],
+		});
+		assert.match(two, /— 2 turns$/);
+	});
+
+	test("buildCancelNote names exactly the chosen note", () => {
+		assert.deepStrictEqual(buildCancelNote("note-1"), {
+			kind: "cancel",
+			noteIds: ["note-1"],
+		});
 	});
 });

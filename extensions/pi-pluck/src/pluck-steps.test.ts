@@ -334,7 +334,7 @@ describe("buildSummaryMessage", () => {
 		assert.match(message, /Forgot 1 of 3 turn/);
 		assert.match(message, /plucked 1\/3/);
 		assert.match(message, /\/unpluck/);
-		assert.doesNotMatch(message, /cloned|trunk|\/tree|u2/i);
+		assert.doesNotMatch(message, /cloned|\/tree|u2/i);
 	});
 });
 

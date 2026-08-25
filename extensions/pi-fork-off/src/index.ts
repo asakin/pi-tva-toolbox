@@ -52,9 +52,9 @@ export interface ForkOffResult {
  *
  * Each branch is `base -> head -> marker`. The head carries the branch brief; the marker
  * is the empty, labeled `custom_message` selected in /tree. Selecting a `custom_message`
- * moves the leaf to its parent and prefills its (empty) text, so selecting the marker
- * lands on the head. A trailing `custom` entry on the base keeps the file's last line,
- * which is the persisted position, on the base rather than inside the last branch.
+ * moves the leaf to its parent and, since the marker text is empty, prefills nothing, so
+ * selecting the marker lands on the head. A trailing `custom` entry on the base keeps the
+ * file's last line, which is the persisted position, on the base rather than inside the last branch.
  */
 export function forkOff(
   sessionManager: SessionManager,

@@ -1,6 +1,6 @@
 {
   "name": "@arielsakin/pi-pluck",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Forget the turns that match a regex: one note on the active branch, nothing deleted, /unpluck restores",
   "type": "module",
   "license": "Apache-2.0",

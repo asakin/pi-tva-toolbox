@@ -1,6 +1,6 @@
 {
   "name": "@arielsakin/pi-tva-lib",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Shared logger for the pi-tva-toolbox extensions; a runtime dependency of pi-time-heist",
   "type": "module",
   "license": "Apache-2.0",

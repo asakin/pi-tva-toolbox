@@ -1,6 +1,6 @@
 {
   "name": "@arielsakin/pi-clear",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Rewind a pi session to before its first message as a new branch of the session tree: /clear as the counter to /new",
   "type": "module",
   "license": "Apache-2.0",

@@ -1,6 +1,6 @@
 {
   "name": "pi-tva-toolbox",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Session-tree tools for pi, the terminal coding agent",
   "author": "Ariel Sakin",
   "license": "Apache-2.0",
@@ -39,10 +39,10 @@
     "version:set": "node scripts/set-version.mjs"
   },
   "dependencies": {
-    "@arielsakin/pi-clear": "0.1.0",
-    "@arielsakin/pi-fork-off": "0.1.0",
-    "@arielsakin/pi-pluck": "0.1.0",
-    "@arielsakin/pi-time-heist": "0.1.0"
+    "@arielsakin/pi-clear": "1.0.0",
+    "@arielsakin/pi-fork-off": "1.0.0",
+    "@arielsakin/pi-pluck": "1.0.0",
+    "@arielsakin/pi-time-heist": "1.0.0"
   },
   "bundleDependencies": [
     "@arielsakin/pi-clear",
